@@ -15,6 +15,9 @@
                 {% if scanning %}Scanning...{% endif %}
             </span>
         </div>
+        <div class="header-center">
+            <a href="https://docs.google.com/spreadsheets/d/1cQH7gwBvAmZO8WiYNPbrCSnO8zxB0DUDhzaeMM5o-ZU/edit?gid=11136630#gid=11136630" target="_blank" class="tracker-link">Tracker</a>
+        </div>
         <div class="header-right">
             <select id="pod-filter">
                 <option value="all">All Pods</option>
@@ -28,6 +31,11 @@
         </div>
     </header>
 
+    <nav class="tabs">
+        <a href="/" class="tab active">Exceptions</a>
+        <a href="/shipments" class="tab">Shipments</a>
+    </nav>
+
     <main>
         <table id="health-table">
             <thead>
@@ -36,8 +44,7 @@
                     <th data-col="pod" class="sortable">Pod</th>
                     <th data-col="needs_replan" class="sortable sorted-desc">Needs Replan</th>
                     <th data-col="missing" class="sortable">Missing</th>
-                    <th data-col="delivery_hold" class="sortable">Hold</th>
-                    <th data-col="total" class="sortable">Total</th>
+                    <th data-col="total" class="sortable">Total Exceptions</th>
                     <th data-col="total_parcels" class="sortable">Parcels</th>
                     <th data-col="exception_rate" class="sortable">Rate</th>
                     <th data-col="delta" class="sortable">Delta</th>
@@ -131,11 +138,10 @@
                 const tracked = trackedSites.has(r.site);
 
                 tr.innerHTML = `
-                    <td class="cell-site">${r.site}</td>
+                    <td class="cell-site"><a href="https://parcels.doordash.com/exceptions?facility_code=${r.site}" target="_blank">${r.site}</a></td>
                     <td>${r.pod}</td>
                     <td class="${cellClass(r.needs_replan)}">${r.needs_replan}</td>
                     <td>${r.missing}</td>
-                    <td>${r.delivery_hold}</td>
                     <td>${r.total}</td>
                     <td>${r.total_parcels}</td>
                     <td>${rate}</td>
@@ -229,8 +235,7 @@
             document.getElementById('modal-info').innerHTML =
                 `<span>Needs Replan: <strong>${replan}</strong></span>
                  <span>Missing: <strong>${missing}</strong></span>
-                 <span>Hold: <strong>${hold}</strong></span>
-                 <span>Total: <strong>${total}</strong></span>`;
+                 <span>Total Exceptions: <strong>${total}</strong></span>`;
 
             document.getElementById('track-site').value = site;
             document.getElementById('track-pod').value = pod;

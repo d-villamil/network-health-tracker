@@ -12,6 +12,11 @@ header {
     display: flex;
     justify-content: space-between;
     align-items: center;
+}
+
+.header-center {
+    flex: 1;
+    text-align: center;
     padding: 16px 24px;
     background: #fff;
     border-bottom: 1px solid #dfe6e9;
@@ -31,6 +36,14 @@ header {
     color: #636e72;
     margin-left: 12px;
 }
+
+.tracker-link {
+    color: #0984e3;
+    text-decoration: none;
+    font-weight: 500;
+}
+
+.tracker-link:hover { text-decoration: underline; }
 
 .meta.active {
     color: #e17055;
@@ -61,6 +74,50 @@ select, button {
 
 #refresh-btn:hover { background: #0773c5; }
 #refresh-btn:disabled { background: #b2bec3; cursor: wait; }
+
+/* Tabs */
+.tabs {
+    display: flex;
+    gap: 0;
+    padding: 0 24px;
+    background: #fff;
+    border-bottom: 1px solid #dfe6e9;
+}
+
+.tab {
+    padding: 10px 20px;
+    font-size: 14px;
+    font-weight: 500;
+    color: #636e72;
+    text-decoration: none;
+    border-bottom: 2px solid transparent;
+    transition: color 0.15s, border-color 0.15s;
+}
+
+.tab:hover { color: #2d3436; }
+
+.tab.active {
+    color: #0984e3;
+    border-bottom-color: #0984e3;
+}
+
+/* Summary bar */
+.summary-bar {
+    display: flex;
+    gap: 24px;
+    padding: 10px 0;
+    font-size: 13px;
+    color: #636e72;
+}
+
+.cell-exceptions {
+    font-size: 12px;
+    color: #636e72;
+    max-width: 300px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
 
 /* Table */
 main { padding: 16px 24px; }

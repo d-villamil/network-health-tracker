@@ -19,6 +19,7 @@ from flask import Flask, jsonify, render_template, request
 load_dotenv(Path(__file__).parent / ".env")
 
 import exception_tracker
+import shipment_checker
 from sheets_writer import SheetsWriter
 
 log = logging.getLogger("dashboard")
@@ -51,6 +52,7 @@ def _get_thresholds() -> dict:
 # ---------------------------------------------------------------------------
 
 _cache = {"data": [], "fetched_at": None, "scanning": False}
+_shipment_cache = {"data": [], "fetched_at": None, "scanning": False}
 _cache_lock = threading.Lock()
 
 
@@ -104,6 +106,47 @@ def _cache_info() -> dict:
             }
         return {"last_updated": "Never", "cache_age_seconds": -1, "scanning": _cache["scanning"]}
 
+def _get_shipment_data(force=False) -> list[dict]:
+    with _cache_lock:
+        now = datetime.now(ET)
+        if not force and _shipment_cache["fetched_at"]:
+            age = (now - _shipment_cache["fetched_at"]).total_seconds()
+            if age < CACHE_TTL:
+                return _shipment_cache["data"]
+
+        if _shipment_cache["scanning"]:
+            return _shipment_cache["data"]
+
+        _shipment_cache["scanning"] = True
+
+    try:
+        log.info("Starting shipment scan...")
+        _set_timerange()
+        results = shipment_checker.run()
+        with _cache_lock:
+            _shipment_cache["data"] = results
+            _shipment_cache["fetched_at"] = datetime.now(ET)
+            _shipment_cache["scanning"] = False
+        log.info(f"Shipment scan complete: {len(results)} flagged")
+        return results
+    except Exception as e:
+        log.error(f"Shipment scan failed: {e}")
+        with _cache_lock:
+            _shipment_cache["scanning"] = False
+        return _shipment_cache["data"]
+
+
+def _shipment_cache_info() -> dict:
+    with _cache_lock:
+        if _shipment_cache["fetched_at"]:
+            age = (datetime.now(ET) - _shipment_cache["fetched_at"]).total_seconds()
+            return {
+                "last_updated": _shipment_cache["fetched_at"].strftime("%-I:%M %p ET"),
+                "cache_age_seconds": int(age),
+            }
+        return {"last_updated": "Never", "cache_age_seconds": -1}
+
+
 # ---------------------------------------------------------------------------
 # Routes
 # ---------------------------------------------------------------------------
@@ -134,6 +177,20 @@ def api_data():
 def api_refresh():
     data = _get_data(force=True)
     info = _cache_info()
+    return jsonify({"rows": data, **info})
+
+
+@app.route("/shipments")
+def shipments_page():
+    data = _get_shipment_data()
+    info = _shipment_cache_info()
+    return render_template("shipments.html", rows=data, last_updated=info["last_updated"])
+
+
+@app.route("/api/shipments/refresh", methods=["POST"])
+def api_shipments_refresh():
+    data = _get_shipment_data(force=True)
+    info = _shipment_cache_info()
     return jsonify({"rows": data, **info})
 
 

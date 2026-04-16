@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shipments — Network Health Dashboard</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <header>
+        <div class="header-left">
+            <h1>Network Health Dashboard</h1>
+            <span id="last-updated" class="meta">Last updated: {{ last_updated }}</span>
+            <span id="scan-status" class="meta"></span>
+        </div>
+        <div class="header-center">
+            <a href="https://docs.google.com/spreadsheets/d/1cQH7gwBvAmZO8WiYNPbrCSnO8zxB0DUDhzaeMM5o-ZU/edit?gid=11136630#gid=11136630" target="_blank" class="tracker-link">Tracker</a>
+        </div>
+        <div class="header-right">
+            <button id="refresh-btn" onclick="refreshData()">Refresh Now</button>
+        </div>
+    </header>
+
+    <nav class="tabs">
+        <a href="/" class="tab">Exceptions</a>
+        <a href="/shipments" class="tab active">Shipments</a>
+    </nav>
+
+    <main>
+        <div class="summary-bar">
+            <span><strong>{{ rows | length }}</strong> flagged shipments</span>
+            <span><strong>{{ rows | selectattr('late', 'equalto', 'Y') | list | length }}</strong> late</span>
+        </div>
+
+        <table id="shipment-table">
+            <thead>
+                <tr>
+                    <th data-col="shipment_id" class="sortable">Shipment ID</th>
+                    <th data-col="carrier" class="sortable">Carrier</th>
+                    <th data-col="origin" class="sortable">Origin</th>
+                    <th data-col="destination" class="sortable">Destination</th>
+                    <th data-col="cet" class="sortable">CET</th>
+                    <th data-col="actual_dropoff" class="sortable">Actual Dropoff</th>
+                    <th data-col="late" class="sortable sorted-desc">Late</th>
+                    <th data-col="stop_exceptions" class="sortable">Stop Exceptions</th>
+                </tr>
+            </thead>
+            <tbody id="table-body"></tbody>
+        </table>
+    </main>
+
+    <script>
+        let DATA = {{ rows | tojson }};
+        let sortCol = 'late';
+        let sortAsc = false;
+
+        function renderTable() {
+            let rows = DATA;
+
+            rows.sort((a, b) => {
+                let va = a[sortCol], vb = b[sortCol];
+                if (typeof va === 'string') va = va.toLowerCase();
+                if (typeof vb === 'string') vb = vb.toLowerCase();
+                if (va < vb) return sortAsc ? -1 : 1;
+                if (va > vb) return sortAsc ? 1 : -1;
+                return 0;
+            });
+
+            const tbody = document.getElementById('table-body');
+            tbody.innerHTML = '';
+
+            rows.forEach(r => {
+                const tr = document.createElement('tr');
+                if (r.late === 'Y') tr.classList.add('row-red');
+
+                tr.innerHTML = `
+                    <td class="cell-site">${r.shipment_id}</td>
+                    <td>${r.carrier}</td>
+                    <td>${r.origin}</td>
+                    <td>${r.destination}</td>
+                    <td>${r.cet}</td>
+                    <td>${r.actual_dropoff || '—'}</td>
+                    <td class="${r.late === 'Y' ? 'cell-red' : ''}">${r.late}</td>
+                    <td class="cell-exceptions">${r.stop_exceptions || '—'}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+
+            document.querySelectorAll('th.sortable').forEach(th => {
+                th.classList.remove('sorted-asc', 'sorted-desc');
+                if (th.dataset.col === sortCol) {
+                    th.classList.add(sortAsc ? 'sorted-asc' : 'sorted-desc');
+                }
+            });
+        }
+
+        document.querySelectorAll('th.sortable').forEach(th => {
+            th.addEventListener('click', () => {
+                const col = th.dataset.col;
+                if (sortCol === col) {
+                    sortAsc = !sortAsc;
+                } else {
+                    sortCol = col;
+                    sortAsc = (col === 'shipment_id' || col === 'carrier' || col === 'origin' || col === 'destination');
+                }
+                renderTable();
+            });
+        });
+
+        async function refreshData() {
+            const btn = document.getElementById('refresh-btn');
+            btn.disabled = true;
+            btn.textContent = 'Scanning...';
+            document.getElementById('scan-status').textContent = 'Scanning shipments...';
+            document.getElementById('scan-status').classList.add('active');
+
+            try {
+                const resp = await fetch('/api/shipments/refresh', { method: 'POST' });
+                const json = await resp.json();
+                DATA = json.rows;
+                document.getElementById('last-updated').textContent = 'Last updated: ' + json.last_updated;
+                renderTable();
+            } catch (e) {
+                console.error('Refresh failed:', e);
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Refresh Now';
+                document.getElementById('scan-status').textContent = '';
+                document.getElementById('scan-status').classList.remove('active');
+            }
+        }
+
+        renderTable();
+    </script>
+</body>
+</html>
