@@ -1,0 +1,96 @@
+# ============================================================
+# parcel-cli Automation — Configuration
+# ============================================================
+# Secrets (webhook URL) go in .env — not here.
+# ============================================================
+
+# Google Sheets — new dedicated tracking sheet
+sheets:
+  spreadsheet_id: "1cQH7gwBvAmZO8WiYNPbrCSnO8zxB0DUDhzaeMM5o-ZU"
+  exceptions_tab: "Exceptions"
+  shipments_tab: "Shipments"
+  tracked_actions_tab: "Tracked Actions"
+
+slack:
+  webhook_url: "${SLACK_WEBHOOK_URL}"
+  channel: "#parcel-claude"
+
+schedule:
+  alert_window:
+    start: "06:00"
+    end: "18:00"
+    timezone: "America/New_York"
+
+# Outreach thresholds — only needs_replan for Phase 1
+outreach:
+  needs_replan:
+    yellow: 15
+    red: 35
+    message_template: |
+      Hi {site_code} team,
+      We're seeing {count} parcels in Needs Replan status as of {time}.
+      Please trigger a replan to move these parcels into batches for dispatch.
+      Let us know if you need support.
+      — Live Ops
+  cooldown_minutes: 120
+
+# Pod map — same as live-ops-monitor
+pods:
+  POD 1:
+    - BKN-9
+    - HUD-1
+    - PHL-7
+    - ORL-3
+    - BLT-3
+    - ATL-11
+    - PHL-8
+    - DAL-8
+    - LIN-1
+    - RAL-3
+  POD 2:
+    - CHI-17
+    - HBG-2
+    - PIT-2
+    - HGR-1
+    - ATX-5
+    - MSP-6
+    - CNJ-2
+    - RIC-2
+    - VAB-4
+    - BOS-5
+    - ATL-12
+  POD 3:
+    - HOU-10
+    - TPA-4
+    - CLT-3
+    - OCO-1
+    - NNJ-6
+    - HFD-3
+    - JAX-2
+    - QNS-2
+    - DET-13
+    - BNX-1
+  POD 4:
+    - COL-5
+    - DAL-9
+    - DCA-5
+    - CIN-5
+    - NNJ-5
+    - BOS-6
+    - NAS-2
+    - CLE-7
+    - INE-11
+    - SAT-4
+  POD 5:
+    - LAX-8
+    - MSP-5
+    - SND-3
+    - LAV-5
+    - MSP-4
+    - EBY-3
+    - LAS-3
+    - CLV-1
+    - PHX-8
+    - SAC-4
+
+dry_run: false

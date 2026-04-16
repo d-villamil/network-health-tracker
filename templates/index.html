@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Network Health Dashboard</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <header>
+        <div class="header-left">
+            <h1>Network Health Dashboard</h1>
+            <span id="last-updated" class="meta">Last updated: {{ last_updated }}</span>
+            <span id="scan-status" class="meta {% if scanning %}active{% endif %}">
+                {% if scanning %}Scanning...{% endif %}
+            </span>
+        </div>
+        <div class="header-right">
+            <select id="pod-filter">
+                <option value="all">All Pods</option>
+                <option value="POD 1">POD 1</option>
+                <option value="POD 2">POD 2</option>
+                <option value="POD 3">POD 3</option>
+                <option value="POD 4">POD 4</option>
+                <option value="POD 5">POD 5</option>
+            </select>
+            <button id="refresh-btn" onclick="refreshData()">Refresh Now</button>
+        </div>
+    </header>
+
+    <main>
+        <table id="health-table">
+            <thead>
+                <tr>
+                    <th data-col="site" class="sortable">Site</th>
+                    <th data-col="pod" class="sortable">Pod</th>
+                    <th data-col="needs_replan" class="sortable sorted-desc">Needs Replan</th>
+                    <th data-col="missing" class="sortable">Missing</th>
+                    <th data-col="delivery_hold" class="sortable">Hold</th>
+                    <th data-col="total" class="sortable">Total</th>
+                    <th data-col="total_parcels" class="sortable">Parcels</th>
+                    <th data-col="exception_rate" class="sortable">Rate</th>
+                    <th data-col="delta" class="sortable">Delta</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody id="table-body"></tbody>
+        </table>
+    </main>
+
+    <!-- Track It Modal -->
+    <div id="modal-overlay" class="modal-overlay hidden" onclick="closeModal(event)">
+        <div class="modal" onclick="event.stopPropagation()">
+            <h2>Track Action — <span id="modal-site"></span></h2>
+            <div class="modal-info" id="modal-info"></div>
+            <form id="track-form" onsubmit="submitTrack(event)">
+                <input type="hidden" id="track-site">
+                <input type="hidden" id="track-pod">
+                <input type="hidden" id="track-replan">
+                <input type="hidden" id="track-missing">
+                <input type="hidden" id="track-hold">
+                <input type="hidden" id="track-total">
+
+                <label for="track-analyst">Analyst Name</label>
+                <input type="text" id="track-analyst" required placeholder="Your name"
+                       value="">
+
+                <label for="track-action">Action Taken</label>
+                <select id="track-action" required>
+                    <option value="">Select action...</option>
+                    <option value="Outreach">Outreach</option>
+                    <option value="Replan">Replan</option>
+                    <option value="Escalation">Escalation</option>
+                    <option value="Investigation">Investigation</option>
+                    <option value="Other">Other</option>
+                </select>
+
+                <label for="track-notes">Notes</label>
+                <textarea id="track-notes" rows="3" placeholder="What did you do? How did it impact the value?"></textarea>
+
+                <div class="modal-actions">
+                    <button type="button" class="btn-cancel" onclick="hideModal()">Cancel</button>
+                    <button type="submit" class="btn-submit" id="submit-btn">Track It</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // Data from server
+        let DATA = {{ rows | tojson }};
+        const THRESHOLDS = {{ thresholds | tojson }};
+        const REFRESH_INTERVAL = {{ refresh_interval }};
+        let sortCol = 'needs_replan';
+        let sortAsc = false;
+        const trackedSites = new Set();
+
+        // Restore analyst name from localStorage
+        const savedAnalyst = localStorage.getItem('dashboard_analyst') || '';
+        document.getElementById('track-analyst').value = savedAnalyst;
+
+        // --------------- Rendering ---------------
+
+        function renderTable() {
+            const filter = document.getElementById('pod-filter').value;
+            let rows = DATA;
+            if (filter !== 'all') {
+                rows = rows.filter(r => r.pod === filter);
+            }
+
+            rows.sort((a, b) => {
+                let va = a[sortCol], vb = b[sortCol];
+                if (typeof va === 'string') va = va.toLowerCase();
+                if (typeof vb === 'string') vb = vb.toLowerCase();
+                if (va < vb) return sortAsc ? -1 : 1;
+                if (va > vb) return sortAsc ? 1 : -1;
+                return 0;
+            });
+
+            const tbody = document.getElementById('table-body');
+            tbody.innerHTML = '';
+
+            rows.forEach(r => {
+                const tr = document.createElement('tr');
+                // Row severity border
+                if (r.needs_replan >= THRESHOLDS.red) tr.classList.add('row-red');
+                else if (r.needs_replan >= THRESHOLDS.yellow) tr.classList.add('row-yellow');
+
+                const rate = (r.exception_rate * 100).toFixed(1) + '%';
+                const delta = r.delta > 0 ? '+' + r.delta : r.delta;
+                const tracked = trackedSites.has(r.site);
+
+                tr.innerHTML = `
+                    <td class="cell-site">${r.site}</td>
+                    <td>${r.pod}</td>
+                    <td class="${cellClass(r.needs_replan)}">${r.needs_replan}</td>
+                    <td>${r.missing}</td>
+                    <td>${r.delivery_hold}</td>
+                    <td>${r.total}</td>
+                    <td>${r.total_parcels}</td>
+                    <td>${rate}</td>
+                    <td class="${r.delta > 0 ? 'delta-up' : r.delta < 0 ? 'delta-down' : ''}">${delta}</td>
+                    <td>
+                        <button class="btn-track ${tracked ? 'tracked' : ''}"
+                                onclick="openTrack('${r.site}', '${r.pod}', ${r.needs_replan}, ${r.missing}, ${r.delivery_hold}, ${r.total})"
+                                ${tracked ? 'disabled' : ''}>
+                            ${tracked ? 'Tracked' : 'Track It'}
+                        </button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+
+            // Update sort indicators
+            document.querySelectorAll('th.sortable').forEach(th => {
+                th.classList.remove('sorted-asc', 'sorted-desc');
+                if (th.dataset.col === sortCol) {
+                    th.classList.add(sortAsc ? 'sorted-asc' : 'sorted-desc');
+                }
+            });
+        }
+
+        function cellClass(val) {
+            if (val >= THRESHOLDS.red) return 'cell-red';
+            if (val >= THRESHOLDS.yellow) return 'cell-yellow';
+            return '';
+        }
+
+        // --------------- Sorting ---------------
+
+        document.querySelectorAll('th.sortable').forEach(th => {
+            th.addEventListener('click', () => {
+                const col = th.dataset.col;
+                if (sortCol === col) {
+                    sortAsc = !sortAsc;
+                } else {
+                    sortCol = col;
+                    sortAsc = (col === 'site' || col === 'pod');
+                }
+                renderTable();
+            });
+        });
+
+        document.getElementById('pod-filter').addEventListener('change', renderTable);
+
+        // --------------- Auto-refresh ---------------
+
+        setInterval(async () => {
+            try {
+                const resp = await fetch('/api/data');
+                const json = await resp.json();
+                DATA = json.rows;
+                document.getElementById('last-updated').textContent = 'Last updated: ' + json.last_updated;
+                renderTable();
+            } catch (e) {
+                console.error('Auto-refresh failed:', e);
+            }
+        }, REFRESH_INTERVAL);
+
+        // --------------- Manual Refresh ---------------
+
+        async function refreshData() {
+            const btn = document.getElementById('refresh-btn');
+            btn.disabled = true;
+            btn.textContent = 'Scanning...';
+            document.getElementById('scan-status').textContent = 'Scanning all sites...';
+            document.getElementById('scan-status').classList.add('active');
+
+            try {
+                const resp = await fetch('/api/refresh', { method: 'POST' });
+                const json = await resp.json();
+                DATA = json.rows;
+                document.getElementById('last-updated').textContent = 'Last updated: ' + json.last_updated;
+                renderTable();
+            } catch (e) {
+                console.error('Refresh failed:', e);
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Refresh Now';
+                document.getElementById('scan-status').textContent = '';
+                document.getElementById('scan-status').classList.remove('active');
+            }
+        }
+
+        // --------------- Track It Modal ---------------
+
+        function openTrack(site, pod, replan, missing, hold, total) {
+            document.getElementById('modal-site').textContent = site;
+            document.getElementById('modal-info').innerHTML =
+                `<span>Needs Replan: <strong>${replan}</strong></span>
+                 <span>Missing: <strong>${missing}</strong></span>
+                 <span>Hold: <strong>${hold}</strong></span>
+                 <span>Total: <strong>${total}</strong></span>`;
+
+            document.getElementById('track-site').value = site;
+            document.getElementById('track-pod').value = pod;
+            document.getElementById('track-replan').value = replan;
+            document.getElementById('track-missing').value = missing;
+            document.getElementById('track-hold').value = hold;
+            document.getElementById('track-total').value = total;
+            document.getElementById('track-action').value = '';
+            document.getElementById('track-notes').value = '';
+
+            // Restore saved analyst name
+            const saved = localStorage.getItem('dashboard_analyst') || '';
+            document.getElementById('track-analyst').value = saved;
+
+            document.getElementById('modal-overlay').classList.remove('hidden');
+        }
+
+        function hideModal() {
+            document.getElementById('modal-overlay').classList.add('hidden');
+        }
+
+        function closeModal(event) {
+            if (event.target === document.getElementById('modal-overlay')) hideModal();
+        }
+
+        async function submitTrack(event) {
+            event.preventDefault();
+            const btn = document.getElementById('submit-btn');
+            btn.disabled = true;
+            btn.textContent = 'Saving...';
+
+            const analyst = document.getElementById('track-analyst').value;
+            localStorage.setItem('dashboard_analyst', analyst);
+
+            const body = {
+                site: document.getElementById('track-site').value,
+                pod: document.getElementById('track-pod').value,
+                needs_replan: parseInt(document.getElementById('track-replan').value),
+                missing: parseInt(document.getElementById('track-missing').value),
+                delivery_hold: parseInt(document.getElementById('track-hold').value),
+                total: parseInt(document.getElementById('track-total').value),
+                analyst: analyst,
+                action: document.getElementById('track-action').value,
+                notes: document.getElementById('track-notes').value,
+            };
+
+            try {
+                const resp = await fetch('/api/track', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body),
+                });
+                const json = await resp.json();
+                if (json.ok) {
+                    trackedSites.add(body.site);
+                    hideModal();
+                    renderTable();
+                } else {
+                    alert('Failed to track: ' + (json.error || 'Unknown error'));
+                }
+            } catch (e) {
+                alert('Network error: ' + e.message);
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Track It';
+            }
+        }
+
+        // Initial render
+        renderTable();
+    </script>
+</body>
+</html>

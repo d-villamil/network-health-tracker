@@ -1,0 +1,9 @@
+.env
+token.json
+credentials.json
+state/
+logs/
+.venv/
+__pycache__/
+*.pyc
+.claude/
