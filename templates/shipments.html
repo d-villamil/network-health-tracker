@@ -74,7 +74,7 @@
                 if (r.late === 'Y') tr.classList.add('row-red');
 
                 tr.innerHTML = `
-                    <td class="cell-site">${r.shipment_id}</td>
+                    <td class="cell-site"><a href="https://parcels.doordash.com/network/shipments/${r.shipment_id}" target="_blank">${r.shipment_id}</a></td>
                     <td>${r.carrier}</td>
                     <td>${r.origin}</td>
                     <td>${r.destination}</td>
