@@ -68,12 +68,12 @@ def run_exceptions(cfg: dict, dry_run: bool):
 
     # Summary table
     log.info("=" * 70)
-    log.info(f"{'Site':>8} | {'Pod':>5} | {'Replan':>6} | {'Missing':>7} | {'Hold':>4} | {'Total':>5} | {'Delta':>6}")
+    log.info(f"{'Site':>8} | {'Pod':>5} | {'Replan':>6} | {'Returned':>8} | {'Total':>5} | {'Delta':>6}")
     log.info("-" * 70)
     for r in sorted(results, key=lambda x: x["needs_replan"], reverse=True):
         log.info(
             f"{r['site']:>8} | {r['pod']:>5} | {r['needs_replan']:>6} | "
-            f"{r['missing']:>7} | {r['delivery_hold']:>4} | {r['total']:>5} | {r['delta']:>+6d}"
+            f"{r['returned_by_runner']:>8} | {r['total']:>5} | {r['delta']:>+6d}"
         )
     log.info("=" * 70)
 

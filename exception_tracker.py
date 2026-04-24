@@ -145,7 +145,7 @@ def run(sites_by_pod: dict[str, list[str]]) -> list[dict]:
 
             log.info(
                 f"  {site}: replan={exc['needs_replan']} missing={exc['missing']} "
-                f"hold={exc['delivery_hold']} total={exc['total']} delta={delta:+d}"
+                f"total={exc['total']} delta={delta:+d}"
             )
 
     _save_state(new_state)

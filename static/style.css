@@ -101,6 +101,45 @@ select, button {
     border-bottom-color: #0984e3;
 }
 
+/* Sections */
+.section {
+    margin-bottom: 32px;
+}
+
+.section-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: #2d3436;
+    margin-bottom: 10px;
+    padding-bottom: 6px;
+    border-bottom: 2px solid #dfe6e9;
+}
+
+.section-count {
+    font-size: 13px;
+    font-weight: 400;
+    color: #636e72;
+}
+
+.toggle-label {
+    font-size: 12px;
+    font-weight: 400;
+    color: #636e72;
+    margin-left: 12px;
+    cursor: pointer;
+}
+
+.toggle-label input { margin-right: 4px; vertical-align: middle; }
+
+.health-table {
+    width: 100%;
+    border-collapse: collapse;
+    background: #fff;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+}
+
 /* Summary bar */
 .summary-bar {
     display: flex;
@@ -176,6 +215,63 @@ tr:hover { background: #f8f9fa; }
 
 .row-red { border-left: 4px solid #e74c3c; }
 .row-yellow { border-left: 4px solid #f39c12; }
+
+.row-tracked {
+    border-left: 4px solid #27ae60;
+    opacity: 0.55;
+}
+
+.row-tracked:hover { opacity: 0.8; }
+
+/* Collapsible alert rows */
+.alert-row.expandable { cursor: pointer; }
+.alert-row.expandable:hover { background: #eef2f7; }
+
+.expand-cell {
+    width: 20px;
+    text-align: center;
+    color: #636e72;
+    font-size: 10px;
+}
+
+.timeline-row {
+    background: #f8f9fa;
+    border-left: 4px solid #dfe6e9;
+}
+
+.timeline-row td {
+    font-size: 12px;
+    color: #636e72;
+    padding: 4px 12px;
+}
+
+.row-follow-up {
+    border-left: 4px solid #e67e22;
+    background: #fef9f0;
+}
+
+.btn-follow-up {
+    padding: 3px 8px;
+    border-radius: 4px;
+    border: 1px solid #e67e22;
+    background: #fff;
+    color: #e67e22;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    margin-left: 6px;
+}
+
+.btn-follow-up:hover { background: #e67e22; color: #fff; }
+
+.track-info {
+    font-size: 11px;
+    color: #27ae60;
+    font-weight: 500;
+    text-decoration: none;
+}
+
+.track-info:hover { text-decoration: underline; }
 
 /* Delta colors */
 .delta-up { color: #e74c3c; }

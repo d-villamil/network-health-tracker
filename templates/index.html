@@ -37,22 +37,44 @@
     </nav>
 
     <main>
-        <table id="health-table">
-            <thead>
-                <tr>
-                    <th data-col="site" class="sortable">Site</th>
-                    <th data-col="pod" class="sortable">Pod</th>
-                    <th data-col="needs_replan" class="sortable sorted-desc">Needs Replan</th>
-                    <th data-col="missing" class="sortable">Missing</th>
-                    <th data-col="total" class="sortable">Total Exceptions</th>
-                    <th data-col="total_parcels" class="sortable">Parcels</th>
-                    <th data-col="exception_rate" class="sortable">Rate</th>
-                    <th data-col="delta" class="sortable">Delta</th>
-                    <th>Action</th>
-                </tr>
-            </thead>
-            <tbody id="table-body"></tbody>
-        </table>
+        <section class="section">
+            <h2 class="section-title">CET — Late to Spoke <span id="cet-count" class="section-count"></span></h2>
+            <table class="health-table" id="cet-table">
+                <thead>
+                    <tr>
+                        <th data-col="shipment_id" data-section="cet" class="sortable">Shipment</th>
+                        <th data-col="carrier" data-section="cet" class="sortable">Carrier</th>
+                        <th data-col="origin" data-section="cet" class="sortable">Origin</th>
+                        <th data-col="destination" data-section="cet" class="sortable">Destination</th>
+                        <th data-col="cet" data-section="cet" class="sortable">CET</th>
+                        <th data-col="actual_arrival" data-section="cet" class="sortable">Actual Arrival</th>
+                        <th data-col="minutes_late" data-section="cet" class="sortable sorted-desc">Min Late</th>
+                        <th data-col="status" data-section="cet" class="sortable">Status</th>
+                        <th data-col="exception_reason" data-section="cet" class="sortable">Exception Reason</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody id="cet-body"></tbody>
+            </table>
+        </section>
+
+        <section class="section">
+            <h2 class="section-title">Site Alerts <span id="alerts-count" class="section-count"></span></h2>
+            <table class="health-table" id="alerts-table">
+                <thead>
+                    <tr>
+                        <th></th>
+                        <th>Site</th>
+                        <th>Pod</th>
+                        <th>Latest Alert</th>
+                        <th>Time</th>
+                        <th>Total Alerts</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody id="alerts-body"></tbody>
+            </table>
+        </section>
     </main>
 
     <!-- Track It Modal -->
@@ -95,75 +117,72 @@
 
     <script>
         // Data from server
-        let DATA = {{ rows | tojson }};
+        let CET_DATA = {{ cet_rows | tojson }};
+        let TIMELINE = {{ timeline | tojson }};
         const THRESHOLDS = {{ thresholds | tojson }};
         const REFRESH_INTERVAL = {{ refresh_interval }};
+        let trackedSites = {{ tracked_sites | tojson }};  // {site: {analyst, action, timestamp, values}}
+        const RE_ENGAGE = {{ re_engage | tojson }};  // {needs_replan: 10, ...}
         let sortCol = 'needs_replan';
         let sortAsc = false;
-        const trackedSites = new Set();
+
+        function needsFollowUp(site, currentRow) {
+            const t = trackedSites[site];
+            if (!t || !t.values) return false;
+            for (const [col, threshold] of Object.entries(RE_ENGAGE)) {
+                const prev = t.values[col] || 0;
+                const curr = currentRow[col] || 0;
+                if (curr - prev >= threshold) return true;
+            }
+            return false;
+        }
 
         // Restore analyst name from localStorage
         const savedAnalyst = localStorage.getItem('dashboard_analyst') || '';
         document.getElementById('track-analyst').value = savedAnalyst;
 
+        // Sort state per section
+        const sortState = {
+            cet: { col: 'minutes_late', asc: false },
+        };
+        const expandedSites = new Set();
+
         // --------------- Rendering ---------------
 
-        function renderTable() {
-            const filter = document.getElementById('pod-filter').value;
-            let rows = DATA;
-            if (filter !== 'all') {
-                rows = rows.filter(r => r.pod === filter);
-            }
-
-            rows.sort((a, b) => {
-                let va = a[sortCol], vb = b[sortCol];
+        function sortRows(rows, col, asc) {
+            return [...rows].sort((a, b) => {
+                let va = a[col], vb = b[col];
                 if (typeof va === 'string') va = va.toLowerCase();
                 if (typeof vb === 'string') vb = vb.toLowerCase();
-                if (va < vb) return sortAsc ? -1 : 1;
-                if (va > vb) return sortAsc ? 1 : -1;
+                if (va < vb) return asc ? -1 : 1;
+                if (va > vb) return asc ? 1 : -1;
                 return 0;
             });
+        }
 
-            const tbody = document.getElementById('table-body');
-            tbody.innerHTML = '';
+        function buildActionCell(r) {
+            const tracked = trackedSites[r.site];
+            const followUp = tracked && needsFollowUp(r.site, r);
+            const trackInfo = tracked ? `${tracked.analyst} — ${tracked.action}` : '';
+            const trackerUrl = 'https://docs.google.com/spreadsheets/d/1cQH7gwBvAmZO8WiYNPbrCSnO8zxB0DUDhzaeMM5o-ZU/edit?gid=11136630#gid=11136630';
 
-            rows.forEach(r => {
-                const tr = document.createElement('tr');
-                // Row severity border
-                if (r.needs_replan >= THRESHOLDS.red) tr.classList.add('row-red');
-                else if (r.needs_replan >= THRESHOLDS.yellow) tr.classList.add('row-yellow');
+            if (followUp) {
+                return `<a href="${trackerUrl}" target="_blank" class="track-info" title="${trackInfo}">${trackInfo}</a>
+                    <button class="btn-follow-up" onclick="openTrack('${r.site}', '${r.pod}', ${r.needs_replan}, ${r.returned_by_runner}, ${r.returned_by_runner}, ${r.total})">Follow Up</button>`;
+            } else if (tracked) {
+                return `<a href="${trackerUrl}" target="_blank" class="track-info" title="${trackInfo}">${trackInfo}</a>`;
+            }
+            return `<button class="btn-track" onclick="openTrack('${r.site}', '${r.pod}', ${r.needs_replan}, ${r.returned_by_runner}, ${r.returned_by_runner}, ${r.total})">Track It</button>`;
+        }
 
-                const rate = (r.exception_rate * 100).toFixed(1) + '%';
-                const delta = r.delta > 0 ? '+' + r.delta : r.delta;
-                const tracked = trackedSites.has(r.site);
-
-                tr.innerHTML = `
-                    <td class="cell-site"><a href="https://parcels.doordash.com/exceptions?facility_code=${r.site}" target="_blank">${r.site}</a></td>
-                    <td>${r.pod}</td>
-                    <td class="${cellClass(r.needs_replan)}">${r.needs_replan}</td>
-                    <td>${r.missing}</td>
-                    <td>${r.total}</td>
-                    <td>${r.total_parcels}</td>
-                    <td>${rate}</td>
-                    <td class="${r.delta > 0 ? 'delta-up' : r.delta < 0 ? 'delta-down' : ''}">${delta}</td>
-                    <td>
-                        <button class="btn-track ${tracked ? 'tracked' : ''}"
-                                onclick="openTrack('${r.site}', '${r.pod}', ${r.needs_replan}, ${r.missing}, ${r.delivery_hold}, ${r.total})"
-                                ${tracked ? 'disabled' : ''}>
-                            ${tracked ? 'Tracked' : 'Track It'}
-                        </button>
-                    </td>
-                `;
-                tbody.appendChild(tr);
-            });
-
-            // Update sort indicators
-            document.querySelectorAll('th.sortable').forEach(th => {
-                th.classList.remove('sorted-asc', 'sorted-desc');
-                if (th.dataset.col === sortCol) {
-                    th.classList.add(sortAsc ? 'sorted-asc' : 'sorted-desc');
-                }
-            });
+        function rowClasses(r) {
+            const tracked = trackedSites[r.site];
+            const followUp = tracked && needsFollowUp(r.site, r);
+            if (tracked && !followUp) return 'row-tracked';
+            if (followUp) return 'row-follow-up';
+            if (r.needs_replan >= THRESHOLDS.red) return 'row-red';
+            if (r.needs_replan >= THRESHOLDS.yellow) return 'row-yellow';
+            return '';
         }
 
         function cellClass(val) {
@@ -172,22 +191,149 @@
             return '';
         }
 
+        function renderTables() {
+            // CET — Late to Spoke section
+            let cetRows = sortRows(CET_DATA, sortState.cet.col, sortState.cet.asc);
+            document.getElementById('cet-count').textContent = `(${cetRows.length} shipments)`;
+
+            const cetBody = document.getElementById('cet-body');
+            cetBody.innerHTML = '';
+            cetRows.forEach(r => {
+                const tr = document.createElement('tr');
+                if (r.status === 'Pending') {
+                    tr.className = 'row-red';
+                } else if (r.minutes_late >= 60) {
+                    tr.className = 'row-red';
+                } else {
+                    tr.className = 'row-yellow';
+                }
+                const lateClass = r.status === 'Pending' ? 'cell-red' : r.minutes_late >= 60 ? 'cell-red' : 'cell-yellow';
+                const statusClass = r.status === 'Pending' ? 'cell-red' : '';
+                tr.innerHTML = `
+                    <td class="cell-site"><a href="https://parcels.doordash.com/network/shipments/${r.shipment_id}" target="_blank">${r.shipment_id}</a></td>
+                    <td>${r.carrier}</td>
+                    <td>${r.origin}</td>
+                    <td>${r.destination}</td>
+                    <td>${r.cet}</td>
+                    <td>${r.actual_arrival || '<em>Pending</em>'}</td>
+                    <td class="${lateClass}">${r.minutes_late}</td>
+                    <td class="${statusClass}">${r.status}</td>
+                    <td>${r.exception_reason || '—'}</td>
+                    <td>
+                        <button class="btn-track"
+                                onclick="openTrack('${r.destination}', '', 0, 0, 0, 0)">
+                            Track It
+                        </button>
+                    </td>
+                `;
+                cetBody.appendChild(tr);
+            });
+
+            // Site Alerts section (collapsible timeline)
+            const filter = document.getElementById('pod-filter').value;
+            const alertSites = Object.entries(TIMELINE)
+                .map(([site, data]) => {
+                    const events = data.events || [];
+                    const latest = events[events.length - 1];
+                    // Find pod from events or crossed data
+                    return { site, events, latest, eventCount: events.length };
+                })
+                .filter(a => a.eventCount > 0)
+                .sort((a, b) => b.eventCount - a.eventCount);
+
+            document.getElementById('alerts-count').textContent = `(${alertSites.length} sites)`;
+
+            const alertsBody = document.getElementById('alerts-body');
+            alertsBody.innerHTML = '';
+
+            alertSites.forEach(a => {
+                const isExpanded = expandedSites.has(a.site);
+                const latest = a.latest;
+                const hasMultiple = a.eventCount > 1;
+
+                // Main row
+                const tr = document.createElement('tr');
+                tr.className = 'alert-row' + (hasMultiple ? ' expandable' : '');
+                if (isExpanded) tr.classList.add('expanded');
+                tr.innerHTML = `
+                    <td class="expand-cell">${hasMultiple ? (isExpanded ? '&#9660;' : '&#9654;') : ''}</td>
+                    <td class="cell-site"><a href="https://parcels.doordash.com/exceptions?facility_code=${a.site}" target="_blank">${a.site}</a></td>
+                    <td>${latest.metric || ''}</td>
+                    <td><strong>${latest.label}</strong></td>
+                    <td>${latest.time}</td>
+                    <td>${a.eventCount} alert${a.eventCount > 1 ? 's' : ''}</td>
+                    <td>
+                        <button class="btn-track"
+                                onclick="openTrack('${a.site}', '', 0, 0, 0, 0)">
+                            Track It
+                        </button>
+                    </td>
+                `;
+                if (hasMultiple) {
+                    tr.addEventListener('click', (e) => {
+                        if (e.target.tagName === 'A' || e.target.tagName === 'BUTTON') return;
+                        if (expandedSites.has(a.site)) {
+                            expandedSites.delete(a.site);
+                        } else {
+                            expandedSites.add(a.site);
+                        }
+                        renderTables();
+                    });
+                }
+                alertsBody.appendChild(tr);
+
+                // Expanded timeline rows
+                if (isExpanded) {
+                    const events = [...a.events].reverse(); // newest first
+                    events.forEach((evt, idx) => {
+                        if (idx === 0) return; // skip latest (already shown)
+                        const subTr = document.createElement('tr');
+                        subTr.className = 'timeline-row';
+                        subTr.innerHTML = `
+                            <td></td>
+                            <td></td>
+                            <td>${evt.metric || ''}</td>
+                            <td>${evt.label}</td>
+                            <td>${evt.time}</td>
+                            <td></td>
+                            <td></td>
+                        `;
+                        alertsBody.appendChild(subTr);
+                    });
+                }
+            });
+
+            // Update sort indicators
+            document.querySelectorAll('th.sortable').forEach(th => {
+                const section = th.dataset.section;
+                const state = sortState[section];
+                if (!state) return;
+                th.classList.remove('sorted-asc', 'sorted-desc');
+                if (th.dataset.col === state.col) {
+                    th.classList.add(state.asc ? 'sorted-asc' : 'sorted-desc');
+                }
+            });
+        }
+
         // --------------- Sorting ---------------
 
         document.querySelectorAll('th.sortable').forEach(th => {
             th.addEventListener('click', () => {
+                const section = th.dataset.section;
                 const col = th.dataset.col;
-                if (sortCol === col) {
-                    sortAsc = !sortAsc;
+                const state = sortState[section];
+                if (!state) return;
+                if (state.col === col) {
+                    state.asc = !state.asc;
                 } else {
-                    sortCol = col;
-                    sortAsc = (col === 'site' || col === 'pod');
+                    state.col = col;
+                    state.asc = (col === 'site' || col === 'pod');
                 }
-                renderTable();
+                renderTables();
             });
         });
 
-        document.getElementById('pod-filter').addEventListener('change', renderTable);
+        document.getElementById('pod-filter').addEventListener('change', renderTables);
 
         // --------------- Auto-refresh ---------------
 
@@ -195,9 +341,12 @@
             try {
                 const resp = await fetch('/api/data');
                 const json = await resp.json();
-                DATA = json.rows;
+                if (json.cet_rows) CET_DATA = json.cet_rows;
+                if (json.timeline) TIMELINE = json.timeline;
+                if (json.tracked_sites) trackedSites = json.tracked_sites;
+                if (json.re_engage) Object.assign(RE_ENGAGE, json.re_engage);
                 document.getElementById('last-updated').textContent = 'Last updated: ' + json.last_updated;
-                renderTable();
+                renderTables();
             } catch (e) {
                 console.error('Auto-refresh failed:', e);
             }
@@ -217,7 +366,7 @@
                 const json = await resp.json();
                 DATA = json.rows;
                 document.getElementById('last-updated').textContent = 'Last updated: ' + json.last_updated;
-                renderTable();
+                renderTables();
             } catch (e) {
                 console.error('Refresh failed:', e);
             } finally {
@@ -234,7 +383,7 @@
             document.getElementById('modal-site').textContent = site;
             document.getElementById('modal-info').innerHTML =
                 `<span>Needs Replan: <strong>${replan}</strong></span>
-                 <span>Missing: <strong>${missing}</strong></span>
+                 <span>Returned by Runner: <strong>${hold}</strong></span>
                  <span>Total Exceptions: <strong>${total}</strong></span>`;
 
             document.getElementById('track-site').value = site;
@@ -290,9 +439,9 @@
                 });
                 const json = await resp.json();
                 if (json.ok) {
-                    trackedSites.add(body.site);
+                    trackedSites[body.site] = {analyst: body.analyst, action: body.action};
                     hideModal();
-                    renderTable();
+                    renderTables();
                 } else {
                     alert('Failed to track: ' + (json.error || 'Unknown error'));
                 }
@@ -305,7 +454,7 @@
         }
 
         // Initial render
-        renderTable();
+        renderTables();
     </script>
 </body>
 </html>
