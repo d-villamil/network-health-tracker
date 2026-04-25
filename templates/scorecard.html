@@ -5,25 +5,156 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Scorecard — Network Health Dashboard</title>
     <link rel="stylesheet" href="/static/style.css">
+    <style>
+        body { background: #2a3d50; color: #e0e6ed; }
+        header { background: #334d63; border-bottom-color: #456a85; }
+        .header-left h1 { color: #e0e6ed; }
+        .tabs { background: #334d63; border-bottom-color: #456a85; }
+        .tab { color: #99aabb; }
+        .tab:hover { color: #e0e6ed; }
+        .tab.active { color: #4fc3f7; border-bottom-color: #4fc3f7; }
+        .section-title { color: #e0e6ed; border-bottom-color: #456a85; }
+        .section-count { color: #99aabb; }
+
+        #scorecard-table { background: #334d63; box-shadow: 0 1px 3px rgba(0,0,0,0.3); }
+        #scorecard-table thead { background: #263849; }
+        #scorecard-table th { color: #b0c0d0; }
+        #scorecard-table th.sortable:hover { background: #456a85; }
+        #scorecard-table td { border-bottom-color: #456a85; color: #dce4ec; }
+        #scorecard-table tr:hover { background: #3d5a72; }
+
+        /* Banded rows */
+        #scorecard-table tbody tr:nth-child(even) { background: #385268; }
+        #scorecard-table tbody tr:nth-child(odd) { background: #334d63; }
+        #scorecard-table tbody tr:hover { background: #426280 !important; }
+
+        /* Dark theme cell colors */
+        .cell-green-dark { background: #265a38; color: #81c784; font-weight: 600; }
+        .cell-red-dark { background: #5a2626; color: #ef5350; font-weight: 600; }
+        .cell-yellow-dark { background: #5a5a26; color: #ffca28; font-weight: 600; }
+
+        .cell-site a { color: #4fc3f7; }
+        .cet-truck { color: #c8d6e5; }
+        .cet-late-detail { color: #ef5350; }
+        .cet-miss-link { color: #ef5350; }
+        .cet-na { color: #556677; }
+        .no-data { color: #556677; }
+        .th-sub { color: #556677; }
+
+        /* Dark row severity */
+        #scorecard-table tr.row-red { border-left: 4px solid #ef5350; }
+        #scorecard-table tr.row-yellow { border-left: 4px solid #ffc107; }
+
+        /* Flag tags */
+        .flags-cell { white-space: nowrap; }
+        .flag-tag {
+            display: inline-block;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 600;
+            text-decoration: none;
+            margin-right: 4px;
+        }
+        .flag-tag:hover { opacity: 0.8; text-decoration: underline; }
+        .flag-ap { background: #4d1e1e; color: #ef5350; }
+        .flag-network { background: #4d3a1e; color: #ffca28; }
+        .flag-transport { background: #1e3a4d; color: #4fc3f7; }
+        .flag-tracker { background: #1e4d2e; color: #66bb6a; }
+
+        /* Track It button (dark theme) */
+        .btn-track-dark {
+            padding: 4px 12px;
+            border-radius: 4px;
+            border: 1px solid #4fc3f7;
+            background: transparent;
+            color: #4fc3f7;
+            font-size: 12px;
+            font-weight: 500;
+            cursor: pointer;
+        }
+        .btn-track-dark:hover { background: #4fc3f7; color: #1a2332; }
+
+        /* Dispatch active dot */
+        .dispatch-dot {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            background: #4caf50;
+            border-radius: 50%;
+            margin-right: 6px;
+            vertical-align: middle;
+            box-shadow: 0 0 4px #4caf50;
+        }
+
+        /* Region headers */
+        .region-header td {
+            background: #263849 !important;
+            color: #4fc3f7;
+            font-weight: 700;
+            font-size: 13px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            padding: 10px 12px;
+            border-bottom: 2px solid #36506a !important;
+        }
+        .region-count {
+            font-weight: 400;
+            font-size: 11px;
+            color: #8899aa;
+            text-transform: none;
+            letter-spacing: 0;
+        }
+
+        /* Expandable rows */
+        #scorecard-table tr.expandable { cursor: pointer; }
+        .alert-badge {
+            display: inline-block;
+            background: #ef5350;
+            color: #fff;
+            font-size: 10px;
+            font-weight: 700;
+            padding: 1px 5px;
+            border-radius: 8px;
+            margin-left: 4px;
+            vertical-align: middle;
+        }
+        .timeline-row-dark td { border-bottom-color: #2a3a4e !important; }
+        .timeline-row-dark { background: #263849 !important; }
+        .timeline-cell {
+            padding: 4px 12px !important;
+        }
+        .timeline-time {
+            color: #8899aa;
+            font-size: 12px;
+            margin-right: 10px;
+        }
+        .timeline-label {
+            color: #c8d6e5;
+            font-size: 12px;
+        }
+
+        select, button { background: #334d63; color: #dce4ec; border-color: #456a85; }
+        #refresh-btn { background: #1976d2; color: #fff; border: none; }
+        #refresh-btn:hover { background: #1565c0; }
+        .tracker-link { color: #4fc3f7; }
+        .meta { color: #8899aa; }
+    </style>
 </head>
 <body>
     <header>
         <div class="header-left">
-            <h1>Network Health Dashboard</h1>
+            <h1><a href="https://docs.google.com/spreadsheets/d/1cQH7gwBvAmZO8WiYNPbrCSnO8zxB0DUDhzaeMM5o-ZU/edit?gid=11136630#gid=11136630" target="_blank" style="color:inherit;text-decoration:none;">Network Health Dashboard</a></h1>
             <span id="last-updated" class="meta">Last updated: {{ last_updated }}</span>
             <span id="scan-status" class="meta"></span>
         </div>
-        <div class="header-center">
-            <a href="https://docs.google.com/spreadsheets/d/1cQH7gwBvAmZO8WiYNPbrCSnO8zxB0DUDhzaeMM5o-ZU/edit?gid=11136630#gid=11136630" target="_blank" class="tracker-link">Tracker</a>
-        </div>
         <div class="header-right">
             <select id="pod-filter">
-                <option value="all">All Pods</option>
-                <option value="POD 1">POD 1</option>
-                <option value="POD 2">POD 2</option>
-                <option value="POD 3">POD 3</option>
-                <option value="POD 4">POD 4</option>
-                <option value="POD 5">POD 5</option>
+                <option value="all">All Regions</option>
+                <option value="Northeast">Northeast</option>
+                <option value="Southeast">Southeast</option>
+                <option value="Central">Central</option>
+                <option value="West">West</option>
             </select>
             <button id="refresh-btn" onclick="refreshData()">Refresh Now</button>
         </div>
@@ -42,11 +173,16 @@
                 <thead>
                     <tr>
                         <th data-col="site" class="sortable">Site</th>
-                        <th data-col="pod" class="sortable">Pod</th>
+                        <th data-col="pod" class="sortable">Region</th>
                         <th data-col="cet_status" class="sortable">CET Met</th>
-                        <th data-col="scan_start" class="sortable">Sort Scan Start</th>
-                        <th data-col="dispatch_toggle" class="sortable">Dispatch Toggle</th>
-                        <th data-col="first_runner" class="sortable">First Runner</th>
+                        <th data-col="small_batches" class="sortable">Small Batches</th>
+                        <th data-col="scan_start" class="sortable">Sort Scan Start<br><span class="th-sub">local time</span></th>
+                        <th data-col="dispatch_start" class="sortable">Dispatch Start<br><span class="th-sub">local time</span></th>
+                        <th data-col="needs_replan" class="sortable">Needs Replan</th>
+                        <th data-col="return_bin" class="sortable">Return Bin</th>
+                        <th data-col="lfr_over_45" class="sortable">LFR > 45m</th>
+                        <th data-col="plib" class="sortable">PLIB</th>
+                        <th>Flags</th>
                     </tr>
                 </thead>
                 <tbody id="scorecard-body"></tbody>
@@ -54,10 +190,66 @@
         </section>
     </main>
 
+    <!-- Track It Modal -->
+    <div id="modal-overlay" class="modal-overlay hidden" onclick="closeModal(event)">
+        <div class="modal" onclick="event.stopPropagation()" style="background:#334d63;color:#dce4ec;">
+            <h2>Track Action — <span id="modal-site"></span></h2>
+            <div class="modal-info" id="modal-info" style="background:#2a3d50;"></div>
+            <form id="track-form" onsubmit="submitTrack(event)">
+                <input type="hidden" id="track-site">
+                <input type="hidden" id="track-pod">
+                <input type="hidden" id="track-replan">
+                <input type="hidden" id="track-small-batches">
+                <input type="hidden" id="track-return-bin">
+                <input type="hidden" id="track-plib">
+
+                <label for="track-analyst">Analyst Name</label>
+                <input type="text" id="track-analyst" required placeholder="Your name"
+                       style="background:#2a3d50;color:#dce4ec;border-color:#456a85;">
+
+                <label for="track-exception-type">Exception Type</label>
+                <select id="track-exception-type" required style="background:#2a3d50;color:#dce4ec;border-color:#456a85;">
+                    <option value="">Select exception...</option>
+                    <option value="Needs Replan">Needs Replan</option>
+                    <option value="Small Batch">Small Batch</option>
+                    <option value="Return Bin">Return Bin</option>
+                    <option value="Dispatch">Dispatch</option>
+                </select>
+
+                <label for="track-notes">Notes</label>
+                <textarea id="track-notes" rows="3" placeholder="What did you do? How did it impact the value?"
+                          style="background:#2a3d50;color:#dce4ec;border-color:#456a85;"></textarea>
+
+                <div class="modal-actions">
+                    <button type="button" class="btn-cancel" onclick="hideModal()">Cancel</button>
+                    <button type="submit" class="btn-submit" id="submit-btn">Track It</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <script>
         let DATA = {{ rows | tojson }};
+        let TIMELINE = {{ timeline | tojson }};
         let sortCol = 'site';
         let sortAsc = true;
+        const expandedSites = new Set();
+
+        function buildFlagsCell(flags) {
+            if (!flags || flags.length === 0) return '';
+            // Group by category, show short label with link
+            const grouped = {};
+            flags.forEach(f => {
+                if (!grouped[f.category]) grouped[f.category] = [];
+                grouped[f.category].push(f);
+            });
+            return Object.entries(grouped).map(([cat, items]) => {
+                const count = items.length > 1 ? ` (${items.length})` : '';
+                const link = items[0].link;
+                const previews = items.map(i => i.preview).join('\\n');
+                return `<a href="${link}" target="_blank" class="flag-tag flag-${cat.toLowerCase()}" title="${previews}">${cat}${count}</a>`;
+            }).join(' ');
+        }
 
         function renderTable() {
             const filter = document.getElementById('pod-filter').value;
@@ -66,11 +258,9 @@
                 rows = rows.filter(r => r.pod === filter);
             }
 
-            // Sort
             rows = [...rows].sort((a, b) => {
                 let va, vb;
                 if (sortCol === 'cet_status') {
-                    // Sort by met percentage (worst first when desc)
                     va = a.cet_total > 0 ? a.cet_met / a.cet_total : 1;
                     vb = b.cet_total > 0 ? b.cet_met / b.cet_total : 1;
                 } else {
@@ -89,10 +279,45 @@
             const tbody = document.getElementById('scorecard-body');
             tbody.innerHTML = '';
 
+            // Group by region
+            const regions = ['Northeast', 'Southeast', 'Central', 'West'];
+            const grouped = {};
+            regions.forEach(reg => { grouped[reg] = []; });
             rows.forEach(r => {
-                const tr = document.createElement('tr');
+                const reg = r.pod || 'Other';
+                if (!grouped[reg]) grouped[reg] = [];
+                grouped[reg].push(r);
+            });
 
-                // Build CET cell with truck icons
+            regions.forEach(region => {
+                const regionRows = grouped[region] || [];
+                if (regionRows.length === 0) return;
+
+                // Region header row
+                const headerTr = document.createElement('tr');
+                headerTr.className = 'region-header';
+                headerTr.innerHTML = `<td colspan="11">${region} <span class="region-count">(${regionRows.length} sites)</span></td>`;
+                tbody.appendChild(headerTr);
+
+            regionRows.forEach(r => {
+                const tr = document.createElement('tr');
+                const siteTimeline = TIMELINE[r.site];
+                const hasAlerts = siteTimeline && siteTimeline.events && siteTimeline.events.length > 0;
+                const isExpanded = expandedSites.has(r.site);
+
+                tr.classList.add('expandable');
+                if (isExpanded) tr.classList.add('expanded');
+                tr.addEventListener('click', (e) => {
+                    if (e.target.tagName === 'A') return;
+                    if (expandedSites.has(r.site)) {
+                        expandedSites.delete(r.site);
+                    } else {
+                        expandedSites.add(r.site);
+                    }
+                    renderTable();
+                });
+
+                // CET cell
                 let cetCell = '';
                 if (r.cet_total === 0) {
                     cetCell = '<span class="cet-na">No inbound</span>';
@@ -107,7 +332,9 @@
                         if (!t.met && t.status === 'pending_late') {
                             label += ` <span class="cet-late-detail">pending</span>`;
                         }
-                        // Link missed CET to shipment page
+                        if (!t.met && t.arrival_reason) {
+                            label += ` <span class="cet-late-detail">(${t.arrival_reason})</span>`;
+                        }
                         if (!t.met && t.shipment_id) {
                             return `<a href="https://parcels.doordash.com/network/shipments/${t.shipment_id}" target="_blank" class="cet-truck cet-miss-link" title="${t.origin} → CET: ${t.cet}, Actual: ${t.actual || 'pending'}, Carrier: ${t.carrier}">${label}</a>`;
                         }
@@ -116,25 +343,75 @@
                     cetCell = parts.join(' ');
                 }
 
-                // Row color based on CET status
                 if (r.cet_total > 0) {
                     const pct = r.cet_met / r.cet_total;
                     if (pct === 0) tr.classList.add('row-red');
                     else if (pct < 1) tr.classList.add('row-yellow');
                 }
 
+                // Scan start color
+                const scanClass = r.scan_start ? (r.scan_start_diff > 15 ? 'cell-red-dark' : r.scan_start_avg ? 'cell-green-dark' : '') : '';
+                const scanTitle = r.scan_start_avg ? `Avg: ${r.scan_start_avg}, diff: ${r.scan_start_diff > 0 ? '+' : ''}${r.scan_start_diff} min` : '';
+
+                // Dispatch start color
+                const dispatchClass = r.dispatch_start ? (r.dispatch_diff > 15 ? 'cell-red-dark' : r.dispatch_start_avg ? 'cell-green-dark' : '') : '';
+                const dispatchTitle = r.dispatch_start_avg ? `Avg: ${r.dispatch_start_avg}, diff: ${r.dispatch_diff > 0 ? '+' : ''}${r.dispatch_diff} min` : '';
+
+                // Small batches
+                const sbClass = r.small_batches > 5 ? 'cell-yellow-dark' : '';
+
+                const expandIcon = isExpanded ? '▾ ' : '▸ ';
+                const alertBadge = hasAlerts ? `<span class="alert-badge">${siteTimeline.events.length}</span>` : '';
+
                 tr.innerHTML = `
-                    <td class="cell-site"><a href="https://parcels.doordash.com/exceptions?facility_code=${r.site}" target="_blank">${r.site}</a></td>
+                    <td class="cell-site">${expandIcon}<a href="https://parcels.doordash.com/exceptions?facility_code=${r.site}" target="_blank">${r.site}</a> ${alertBadge}</td>
                     <td>${r.pod}</td>
                     <td class="cet-cell">${cetCell}</td>
-                    <td>${r.scan_start || '<span class="no-data">—</span>'}</td>
-                    <td>${r.dispatch_toggle || '<span class="no-data">—</span>'}</td>
-                    <td>${r.first_runner || '<span class="no-data">—</span>'}</td>
+                    <td class="${sbClass}">${r.small_batches || '<span class="no-data">0</span>'}</td>
+                    <td class="${scanClass}" title="${scanTitle}">${r.scan_start || '<span class="no-data">—</span>'}</td>
+                    <td class="${dispatchClass}" title="${dispatchTitle}">${r.dispatch_active ? '<span class="dispatch-dot"></span>' : ''}${r.dispatch_start || '<span class="no-data">—</span>'}</td>
+                    <td class="${r.needs_replan >= 35 ? 'cell-red-dark' : r.needs_replan >= 15 ? 'cell-yellow-dark' : ''}">${r.needs_replan || '<span class="no-data">0</span>'}</td>
+                    <td class="${r.return_bin >= 15 ? 'cell-red-dark' : r.return_bin >= 5 ? 'cell-yellow-dark' : ''}">${r.return_bin || '<span class="no-data">0</span>'}</td>
+                    <td class="${r.lfr_over_45 > 0 ? 'cell-yellow-dark' : ''}">${r.lfr_over_45 || '<span class="no-data">0</span>'}</td>
+                    <td class="${r.plib >= 30 ? 'cell-red-dark' : r.plib >= 15 ? 'cell-yellow-dark' : ''}">${r.plib || '<span class="no-data">0</span>'}</td>
+                    <td class="flags-cell">${buildFlagsCell(r.flags || [])}</td>
                 `;
                 tbody.appendChild(tr);
-            });
 
-            // Sort indicators
+                // Expanded section: timeline + Track It
+                if (isExpanded) {
+                    if (hasAlerts) {
+                        const events = [...siteTimeline.events].reverse();
+                        events.forEach(evt => {
+                            const subTr = document.createElement('tr');
+                            subTr.className = 'timeline-row-dark';
+                            subTr.innerHTML = `
+                                <td colspan="2"></td>
+                                <td colspan="9" class="timeline-cell">
+                                    <span class="timeline-time">${evt.time}</span>
+                                    <span class="timeline-label">${evt.label}</span>
+                                </td>
+                            `;
+                            tbody.appendChild(subTr);
+                        });
+                    }
+                    // Track It row
+                    const trackTr = document.createElement('tr');
+                    trackTr.className = 'timeline-row-dark';
+                    trackTr.innerHTML = `
+                        <td colspan="2"></td>
+                        <td colspan="9" class="timeline-cell">
+                            <button class="btn-track-dark"
+                                    onclick="event.stopPropagation(); openTrackScorecard('${r.site}', '${r.pod}', ${r.needs_replan || 0}, ${r.small_batches || 0}, ${r.return_bin || 0}, ${r.plib || 0})">
+                                Track It
+                            </button>
+                        </td>
+                    `;
+                    tbody.appendChild(trackTr);
+                }
+            }); // end regionRows
+            }); // end regions
+
             document.querySelectorAll('th.sortable').forEach(th => {
                 th.classList.remove('sorted-asc', 'sorted-desc');
                 if (th.dataset.col === sortCol) {
@@ -143,7 +420,6 @@
             });
         }
 
-        // Sorting
         document.querySelectorAll('th.sortable').forEach(th => {
             th.addEventListener('click', () => {
                 const col = th.dataset.col;
@@ -159,18 +435,18 @@
 
         document.getElementById('pod-filter').addEventListener('change', renderTable);
 
-        // Refresh
         async function refreshData() {
             const btn = document.getElementById('refresh-btn');
             btn.disabled = true;
             btn.textContent = 'Scanning...';
-            document.getElementById('scan-status').textContent = 'Scanning all sites...';
+            document.getElementById('scan-status').textContent = 'Scanning...';
             document.getElementById('scan-status').classList.add('active');
 
             try {
                 const resp = await fetch('/api/scorecard/refresh', { method: 'POST' });
                 const json = await resp.json();
                 DATA = json.rows;
+                if (json.timeline) TIMELINE = json.timeline;
                 document.getElementById('last-updated').textContent = 'Last updated: ' + json.last_updated;
                 renderTable();
             } catch (e) {
@@ -180,6 +456,77 @@
                 btn.textContent = 'Refresh Now';
                 document.getElementById('scan-status').textContent = '';
                 document.getElementById('scan-status').classList.remove('active');
+            }
+        }
+
+        // --------------- Track It Modal ---------------
+
+        const savedAnalyst = localStorage.getItem('dashboard_analyst') || '';
+        document.getElementById('track-analyst').value = savedAnalyst;
+
+        function openTrackScorecard(site, pod, replan, smallBatches, returnBin, plib) {
+            document.getElementById('modal-site').textContent = site;
+            document.getElementById('modal-info').innerHTML =
+                `<span>Needs Replan: <strong>${replan}</strong></span>
+                 <span>Small Batches: <strong>${smallBatches}</strong></span>
+                 <span>Return Bin: <strong>${returnBin}</strong></span>
+                 <span>PLIB: <strong>${plib}</strong></span>`;
+            document.getElementById('track-site').value = site;
+            document.getElementById('track-pod').value = pod;
+            document.getElementById('track-replan').value = replan;
+            document.getElementById('track-small-batches').value = smallBatches;
+            document.getElementById('track-return-bin').value = returnBin;
+            document.getElementById('track-plib').value = plib;
+            document.getElementById('track-exception-type').value = '';
+            document.getElementById('track-notes').value = '';
+            const saved = localStorage.getItem('dashboard_analyst') || '';
+            document.getElementById('track-analyst').value = saved;
+            document.getElementById('modal-overlay').classList.remove('hidden');
+        }
+
+        function hideModal() {
+            document.getElementById('modal-overlay').classList.add('hidden');
+        }
+
+        function closeModal(event) {
+            if (event.target === document.getElementById('modal-overlay')) hideModal();
+        }
+
+        async function submitTrack(event) {
+            event.preventDefault();
+            const btn = document.getElementById('submit-btn');
+            btn.disabled = true;
+            btn.textContent = 'Saving...';
+            const analyst = document.getElementById('track-analyst').value;
+            localStorage.setItem('dashboard_analyst', analyst);
+            const body = {
+                site: document.getElementById('track-site').value,
+                pod: document.getElementById('track-pod').value,
+                needs_replan: parseInt(document.getElementById('track-replan').value),
+                missing: 0,
+                delivery_hold: 0,
+                total: parseInt(document.getElementById('track-replan').value),
+                analyst: analyst,
+                action: document.getElementById('track-exception-type').value,
+                notes: document.getElementById('track-notes').value,
+            };
+            try {
+                const resp = await fetch('/api/track', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body),
+                });
+                const json = await resp.json();
+                if (json.ok) {
+                    hideModal();
+                } else {
+                    alert('Failed to track: ' + (json.error || 'Unknown error'));
+                }
+            } catch (e) {
+                alert('Network error: ' + e.message);
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Track It';
             }
         }
 

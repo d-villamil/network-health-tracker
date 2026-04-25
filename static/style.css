@@ -213,6 +213,12 @@ tr:hover { background: #f8f9fa; }
     font-weight: 600;
 }
 
+.cell-green {
+    background: #d4edda;
+    color: #155724;
+    font-weight: 600;
+}
+
 .row-red { border-left: 4px solid #e74c3c; }
 .row-yellow { border-left: 4px solid #f39c12; }
 
@@ -250,6 +256,14 @@ tr:hover { background: #f8f9fa; }
 .cet-na {
     color: #b2bec3;
     font-size: 12px;
+}
+
+.th-sub {
+    font-size: 10px;
+    font-weight: 400;
+    color: #b2bec3;
+    text-transform: none;
+    letter-spacing: 0;
 }
 
 .no-data {

@@ -24,6 +24,7 @@ import lfr_tracker
 import return_bin_tracker
 import scorecard_tracker
 import shipment_checker
+from site_flags_tracker import _load_cached as load_site_flags
 import small_batch_tracker
 import timeline_tracker
 from sheets_writer import SheetsWriter
@@ -32,7 +33,8 @@ log = logging.getLogger("dashboard")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)-5s %(message)s", datefmt="%H:%M:%S")
 
 ET = ZoneInfo("America/New_York")
-CACHE_TTL = 180  # seconds
+CACHE_TTL = 180  # seconds — parcel-cli data
+TRINO_CACHE_TTL = 1800  # 30 minutes — Trino data (return bin)
 
 app = Flask(__name__)
 
@@ -287,7 +289,7 @@ def _get_return_bin_data(force=False) -> list[dict]:
         now = datetime.now(ET)
         if not force and _return_bin_cache["fetched_at"]:
             age = (now - _return_bin_cache["fetched_at"]).total_seconds()
-            if age < CACHE_TTL:
+            if age < TRINO_CACHE_TTL:
                 return _return_bin_cache["data"]
 
         if _return_bin_cache["scanning"]:
@@ -476,15 +478,59 @@ def api_refresh():
 @app.route("/scorecard")
 def scorecard_page():
     data = _get_scorecard_data()
+    exc_data = _get_data()
+    return_bin_data = _get_return_bin_data()
+    lfr_data = _get_lfr_data()
+    timeline = timeline_tracker.get_timeline()
     info = _cache_info()
-    return render_template("scorecard.html", rows=data, last_updated=info["last_updated"])
+
+    # Build lookup dicts for real-time counts
+    exc_by_site = {r["site"]: r for r in exc_data}
+    rb_by_site = {r["site"]: r.get("scan_return_bin", 0) for r in return_bin_data}
+    lfr_by_site = {r["site"]: r for r in lfr_data}
+
+    # Merge real-time counts into scorecard rows
+    for r in data:
+        exc = exc_by_site.get(r["site"], {})
+        r["needs_replan"] = exc.get("needs_replan", 0)
+        r["return_bin"] = rb_by_site.get(r["site"], 0)
+        r["lfr_over_45"] = lfr_by_site.get(r["site"], {}).get("lfr_over_45", 0)
+        r["dispatch_active"] = lfr_by_site.get(r["site"], {}).get("dispatch_active", False)
+        r["plib"] = lfr_by_site.get(r["site"], {}).get("plib", 0)
+
+    site_flags = load_site_flags() or {}
+    for r in data:
+        r["flags"] = site_flags.get(r["site"], [])
+
+    return render_template("scorecard.html", rows=data, timeline=timeline, last_updated=info["last_updated"])
 
 
 @app.route("/api/scorecard/refresh", methods=["POST"])
 def api_scorecard_refresh():
     data = _get_scorecard_data(force=True)
+    exc_data = _get_data()
+    return_bin_data = _get_return_bin_data()
+    lfr_data = _get_lfr_data()
+    timeline = timeline_tracker.get_timeline()
     info = _cache_info()
-    return jsonify({"rows": data, **info})
+
+    exc_by_site = {r["site"]: r for r in exc_data}
+    rb_by_site = {r["site"]: r.get("scan_return_bin", 0) for r in return_bin_data}
+    lfr_by_site = {r["site"]: r for r in lfr_data}
+
+    for r in data:
+        exc = exc_by_site.get(r["site"], {})
+        r["needs_replan"] = exc.get("needs_replan", 0)
+        r["return_bin"] = rb_by_site.get(r["site"], 0)
+        r["lfr_over_45"] = lfr_by_site.get(r["site"], {}).get("lfr_over_45", 0)
+        r["dispatch_active"] = lfr_by_site.get(r["site"], {}).get("dispatch_active", False)
+        r["plib"] = lfr_by_site.get(r["site"], {}).get("plib", 0)
+
+    site_flags = load_site_flags() or {}
+    for r in data:
+        r["flags"] = site_flags.get(r["site"], [])
+
+    return jsonify({"rows": data, "timeline": timeline, **info})
 
 
 @app.route("/shipments")

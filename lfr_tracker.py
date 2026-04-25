@@ -45,10 +45,31 @@ def get_lfr_batches(site: str) -> dict:
         "parcel-cli", "batch", "list", "-f", site, "--format", "json",
     ])
     if data is None:
-        return {"total_lfr": 0, "lfr_over_45": 0, "first_lfr_time": "", "max_wait_min": 0}
+        return {"total_lfr": 0, "lfr_over_45": 0, "first_lfr_time": "", "max_wait_min": 0, "dispatch_active": False}
+
+    DISPATCH_ACTIVE_STATUSES = {
+        "BATCH_STATUS_TYPE_LOOKING_FOR_RUNNERS",
+        "BATCH_STATUS_TYPE_RUNNER_ASSIGNED",
+        "BATCH_STATUS_TYPE_RUNNER_APPROACHING",
+        "BATCH_STATUS_TYPE_RUNNER_SCANNING_BATCH",
+    }
 
     now = datetime.now(ET)
     lfr_batches = []
+    PLIB_STATUSES = {
+        "BATCH_STATUS_TYPE_PREPARING",
+        "BATCH_STATUS_TYPE_READY_TO_DISPATCH",
+    }
+
+    dispatch_active = any(
+        row.get("batch_status_type", "") in DISPATCH_ACTIVE_STATUSES
+        for row in (data.get("rows") or [])
+    )
+
+    plib = sum(
+        1 for row in (data.get("rows") or [])
+        if row.get("batch_status_type", "") in PLIB_STATUSES
+    )
 
     for row in (data.get("rows") or []):
         if row.get("batch_status_type") not in LFR_STATUSES:
@@ -66,7 +87,7 @@ def get_lfr_batches(site: str) -> dict:
             continue
 
     if not lfr_batches:
-        return {"total_lfr": 0, "lfr_over_45": 0, "first_lfr_time": "", "max_wait_min": 0}
+        return {"total_lfr": 0, "lfr_over_45": 0, "first_lfr_time": "", "max_wait_min": 0, "dispatch_active": dispatch_active, "plib": plib}
 
     over_45 = [b for b in lfr_batches if b["wait_min"] > 45]
     earliest = min(lfr_batches, key=lambda b: b["time"])
@@ -77,6 +98,8 @@ def get_lfr_batches(site: str) -> dict:
         "lfr_over_45": len(over_45),
         "first_lfr_time": earliest["time"].strftime("%-I:%M %p ET"),
         "max_wait_min": int(longest["wait_min"]),
+        "dispatch_active": dispatch_active,
+        "plib": plib,
     }
 
 
@@ -95,6 +118,8 @@ def run(sites_by_pod: dict[str, list[str]]) -> list[dict]:
                 "lfr_over_45": lfr["lfr_over_45"],
                 "first_lfr_time": lfr["first_lfr_time"],
                 "max_wait_min": lfr["max_wait_min"],
+                "dispatch_active": lfr["dispatch_active"],
+                "plib": lfr["plib"],
             })
 
     sites_with_lfr = sum(1 for r in results if r["total_lfr"] > 0)

@@ -38,63 +38,62 @@ outreach:
 re_engage:
   needs_replan: 10
 
-# Pod map — same as live-ops-monitor
+# Regional grouping
 pods:
-  POD 1:
+  Northeast:
     - BKN-9
-    - HUD-1
-    - PHL-7
-    - ORL-3
-    - BLT-3
-    - ATL-11
-    - PHL-8
-    - DAL-8
-    - LIN-1
-    - RAL-3
-  POD 2:
-    - CHI-17
-    - HBG-2
-    - PIT-2
-    - HGR-1
-    - ATX-5
-    - MSP-6
-    - CNJ-2
-    - RIC-2
-    - VAB-4
-    - BOS-5
-    - ATL-12
-  POD 3:
-    - HOU-10
-    - TPA-4
-    - CLT-3
-    - OCO-1
-    - NNJ-6
-    - HFD-3
-    - JAX-2
-    - QNS-2
-    - DET-13
     - BNX-1
-  POD 4:
-    - COL-5
-    - DAL-9
-    - DCA-5
-    - CIN-5
-    - NNJ-5
+    - BOS-5
     - BOS-6
-    - NAS-2
+    - CNJ-2
+    - HBG-2
+    - HFD-3
+    - HGR-1
+    - HUD-1
+    - LIN-1
+    - NNJ-5
+    - NNJ-6
+    - PHL-7
+    - PHL-8
+    - PIT-2
+    - QNS-2
+  Southeast:
+    - ATL-11
+    - ATL-12
+    - BLT-3
+    - CLT-3
+    - DCA-5
+    - JAX-2
+    - ORL-3
+    - RAL-3
+    - RIC-2
+    - TPA-4
+    - VAB-4
+  Central:
+    - ATX-5
+    - CHI-17
+    - CIN-5
     - CLE-7
-    - INE-11
-    - SAT-4
-  POD 5:
-    - LAX-8
-    - MSP-5
-    - SND-3
-    - LAV-5
+    - COL-5
+    - DAL-8
+    - DAL-9
+    - DET-13
+    - HOU-10
     - MSP-4
-    - EBY-3
-    - LAS-3
+    - MSP-6
+    - NAS-2
+    - SAT-4
+  West:
     - CLV-1
+    - EBY-3
+    - INE-11
+    - LAS-3
+    - LAV-5
+    - LAX-8
+    - LAX-9
+    - OCO-1
     - PHX-8
     - SAC-4
+    - SND-3
 
 dry_run: false
