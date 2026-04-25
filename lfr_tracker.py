@@ -67,7 +67,8 @@ def get_lfr_batches(site: str) -> dict:
     )
 
     plib = sum(
-        1 for row in (data.get("rows") or [])
+        (row.get("partial_parcels_count") or 0)
+        for row in (data.get("rows") or [])
         if row.get("batch_status_type", "") in PLIB_STATUSES
     )
 

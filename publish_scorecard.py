@@ -209,7 +209,7 @@ def generate_html(data: dict) -> str:
     </div>
 
     <script>
-        const WEBHOOK_URL = 'https://script.google.com/a/macros/doordash.com/s/AKfycbxW6j7X7L5NSeSJvUV7k3cEkbM1SAf_dVkoyENFuKoajF7RNchssuk2hObotFNKw2XF7w/exec';
+        const WEBHOOK_URL = 'https://script.google.com/a/macros/doordash.com/s/AKfycbxmZFP9sfjLI6RKGdDAsfQEjdMozuNhnQqDHTs8SgeY4twnQqH-BMQ0aUa4g9VJF6RRhQ/exec';
         const DATA = {json.dumps(rows)};
         const TIMELINE = {json.dumps(timeline)};
         let sortCol = 'site';
@@ -406,37 +406,25 @@ def generate_html(data: dict) -> str:
 
         function hideModal() {{ document.getElementById('modal-overlay').classList.add('hidden'); }}
 
-        async function submitTrack(event) {{
+        function submitTrack(event) {{
             event.preventDefault();
-            const btn = document.getElementById('submit-btn');
-            btn.disabled = true; btn.textContent = 'Saving...';
             const analyst = document.getElementById('track-analyst').value;
             localStorage.setItem('dashboard_analyst', analyst);
             const now = new Date().toLocaleString('en-US', {{timeZone: 'America/New_York'}});
-            const body = {{
+            const params = new URLSearchParams({{
                 timestamp: now,
                 site: document.getElementById('track-site').value,
-                pod: document.getElementById('track-pod').value,
-                needs_replan: parseInt(document.getElementById('track-replan').value),
-                missing: 0, delivery_hold: 0,
-                total: parseInt(document.getElementById('track-replan').value),
+                region: document.getElementById('track-pod').value,
                 analyst: analyst,
                 action: document.getElementById('track-exception').value,
+                needs_replan: document.getElementById('track-replan').value,
+                small_batches: document.getElementById('track-sb').value,
+                return_bin: document.getElementById('track-rb').value,
+                plib: document.getElementById('track-plib').value,
                 notes: document.getElementById('track-notes').value,
-            }};
-            try {{
-                await fetch(WEBHOOK_URL, {{
-                    method: 'POST', mode: 'no-cors',
-                    headers: {{'Content-Type': 'application/json'}},
-                    body: JSON.stringify(body),
-                }});
-                hideModal();
-                alert('Tracked successfully!');
-            }} catch (e) {{
-                alert('Error: ' + e.message);
-            }} finally {{
-                btn.disabled = false; btn.textContent = 'Track It';
-            }}
+            }});
+            window.open(WEBHOOK_URL + '?' + params.toString(), '_blank');
+            hideModal();
         }}
 
         renderTable();

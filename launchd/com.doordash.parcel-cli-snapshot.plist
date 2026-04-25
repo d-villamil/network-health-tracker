@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.doordash.parcel-cli-snapshot</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/david.villamil/parcel-cli/.venv/bin/python</string>
+        <string>/Users/david.villamil/parcel-cli/daily_snapshot.py</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>/Users/david.villamil/parcel-cli</string>
+
+    <!-- Run at 7:00 PM ET (19:00) daily -->
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Hour</key><integer>19</integer>
+        <key>Minute</key><integer>0</integer>
+    </dict>
+
+    <key>StandardOutPath</key>
+    <string>/Users/david.villamil/parcel-cli/logs/launchd-snapshot.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/david.villamil/parcel-cli/logs/launchd-snapshot.log</string>
+</dict>
+</plist>
