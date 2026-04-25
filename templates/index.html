@@ -33,6 +33,7 @@
 
     <nav class="tabs">
         <a href="/" class="tab active">Exceptions</a>
+        <a href="/scorecard" class="tab">Scorecard</a>
         <a href="/shipments" class="tab">Shipments</a>
     </nav>
 
@@ -64,11 +65,11 @@
                 <thead>
                     <tr>
                         <th></th>
-                        <th>Site</th>
-                        <th>Pod</th>
+                        <th data-col="site" data-section="alerts" class="sortable">Site</th>
+                        <th data-col="pod" data-section="alerts" class="sortable">Pod</th>
                         <th>Latest Alert</th>
-                        <th>Time</th>
-                        <th>Total Alerts</th>
+                        <th data-col="time" data-section="alerts" class="sortable">Time</th>
+                        <th data-col="eventCount" data-section="alerts" class="sortable sorted-desc">Total Alerts</th>
                         <th>Action</th>
                     </tr>
                 </thead>
@@ -144,6 +145,7 @@
         // Sort state per section
         const sortState = {
             cet: { col: 'minutes_late', asc: false },
+            alerts: { col: 'eventCount', asc: false },
         };
         const expandedSites = new Set();
 
@@ -231,15 +233,20 @@
 
             // Site Alerts section (collapsible timeline)
             const filter = document.getElementById('pod-filter').value;
-            const alertSites = Object.entries(TIMELINE)
+            let alertSites = Object.entries(TIMELINE)
                 .map(([site, data]) => {
                     const events = data.events || [];
                     const latest = events[events.length - 1];
-                    // Find pod from events or crossed data
-                    return { site, events, latest, eventCount: events.length };
+                    const pod = data.pod || '';
+                    return { site, pod, events, latest, eventCount: events.length, time: latest ? latest.time : '' };
                 })
-                .filter(a => a.eventCount > 0)
-                .sort((a, b) => b.eventCount - a.eventCount);
+                .filter(a => a.eventCount > 0);
+
+            if (filter !== 'all') {
+                alertSites = alertSites.filter(a => a.pod === filter);
+            }
+
+            alertSites = sortRows(alertSites, sortState.alerts.col, sortState.alerts.asc);
 
             document.getElementById('alerts-count').textContent = `(${alertSites.length} sites)`;
 
@@ -258,7 +265,7 @@
                 tr.innerHTML = `
                     <td class="expand-cell">${hasMultiple ? (isExpanded ? '&#9660;' : '&#9654;') : ''}</td>
                     <td class="cell-site"><a href="https://parcels.doordash.com/exceptions?facility_code=${a.site}" target="_blank">${a.site}</a></td>
-                    <td>${latest.metric || ''}</td>
+                    <td>${a.pod}</td>
                     <td><strong>${latest.label}</strong></td>
                     <td>${latest.time}</td>
                     <td>${a.eventCount} alert${a.eventCount > 1 ? 's' : ''}</td>

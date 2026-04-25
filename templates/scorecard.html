@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scorecard — Network Health Dashboard</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <header>
+        <div class="header-left">
+            <h1>Network Health Dashboard</h1>
+            <span id="last-updated" class="meta">Last updated: {{ last_updated }}</span>
+            <span id="scan-status" class="meta"></span>
+        </div>
+        <div class="header-center">
+            <a href="https://docs.google.com/spreadsheets/d/1cQH7gwBvAmZO8WiYNPbrCSnO8zxB0DUDhzaeMM5o-ZU/edit?gid=11136630#gid=11136630" target="_blank" class="tracker-link">Tracker</a>
+        </div>
+        <div class="header-right">
+            <select id="pod-filter">
+                <option value="all">All Pods</option>
+                <option value="POD 1">POD 1</option>
+                <option value="POD 2">POD 2</option>
+                <option value="POD 3">POD 3</option>
+                <option value="POD 4">POD 4</option>
+                <option value="POD 5">POD 5</option>
+            </select>
+            <button id="refresh-btn" onclick="refreshData()">Refresh Now</button>
+        </div>
+    </header>
+
+    <nav class="tabs">
+        <a href="/" class="tab">Exceptions</a>
+        <a href="/scorecard" class="tab active">Scorecard</a>
+        <a href="/shipments" class="tab">Shipments</a>
+    </nav>
+
+    <main>
+        <section class="section">
+            <h2 class="section-title">Spoke Health Scorecard <span id="scorecard-count" class="section-count"></span></h2>
+            <table class="health-table" id="scorecard-table">
+                <thead>
+                    <tr>
+                        <th data-col="site" class="sortable">Site</th>
+                        <th data-col="pod" class="sortable">Pod</th>
+                        <th data-col="cet_status" class="sortable">CET Met</th>
+                        <th data-col="scan_start" class="sortable">Sort Scan Start</th>
+                        <th data-col="dispatch_toggle" class="sortable">Dispatch Toggle</th>
+                        <th data-col="first_runner" class="sortable">First Runner</th>
+                    </tr>
+                </thead>
+                <tbody id="scorecard-body"></tbody>
+            </table>
+        </section>
+    </main>
+
+    <script>
+        let DATA = {{ rows | tojson }};
+        let sortCol = 'site';
+        let sortAsc = true;
+
+        function renderTable() {
+            const filter = document.getElementById('pod-filter').value;
+            let rows = DATA;
+            if (filter !== 'all') {
+                rows = rows.filter(r => r.pod === filter);
+            }
+
+            // Sort
+            rows = [...rows].sort((a, b) => {
+                let va, vb;
+                if (sortCol === 'cet_status') {
+                    // Sort by met percentage (worst first when desc)
+                    va = a.cet_total > 0 ? a.cet_met / a.cet_total : 1;
+                    vb = b.cet_total > 0 ? b.cet_met / b.cet_total : 1;
+                } else {
+                    va = a[sortCol] || '';
+                    vb = b[sortCol] || '';
+                    if (typeof va === 'string') va = va.toLowerCase();
+                    if (typeof vb === 'string') vb = vb.toLowerCase();
+                }
+                if (va < vb) return sortAsc ? -1 : 1;
+                if (va > vb) return sortAsc ? 1 : -1;
+                return 0;
+            });
+
+            document.getElementById('scorecard-count').textContent = `(${rows.length} spokes)`;
+
+            const tbody = document.getElementById('scorecard-body');
+            tbody.innerHTML = '';
+
+            rows.forEach(r => {
+                const tr = document.createElement('tr');
+
+                // Build CET cell with truck icons
+                let cetCell = '';
+                if (r.cet_total === 0) {
+                    cetCell = '<span class="cet-na">No inbound</span>';
+                } else {
+                    const trucks = r.cet_trucks || [];
+                    const parts = trucks.map(t => {
+                        const icon = t.met ? '✅' : (t.status === 'pending_late' ? '⏳' : '❌');
+                        let label = `${t.origin} ${icon}`;
+                        if (!t.met && t.minutes_late > 0) {
+                            label += ` <span class="cet-late-detail">${t.minutes_late}m late</span>`;
+                        }
+                        if (!t.met && t.status === 'pending_late') {
+                            label += ` <span class="cet-late-detail">pending</span>`;
+                        }
+                        // Link missed CET to shipment page
+                        if (!t.met && t.shipment_id) {
+                            return `<a href="https://parcels.doordash.com/network/shipments/${t.shipment_id}" target="_blank" class="cet-truck cet-miss-link" title="${t.origin} → CET: ${t.cet}, Actual: ${t.actual || 'pending'}, Carrier: ${t.carrier}">${label}</a>`;
+                        }
+                        return `<span class="cet-truck" title="${t.origin} → CET: ${t.cet}, Actual: ${t.actual || 'pending'}, Carrier: ${t.carrier}">${label}</span>`;
+                    });
+                    cetCell = parts.join(' ');
+                }
+
+                // Row color based on CET status
+                if (r.cet_total > 0) {
+                    const pct = r.cet_met / r.cet_total;
+                    if (pct === 0) tr.classList.add('row-red');
+                    else if (pct < 1) tr.classList.add('row-yellow');
+                }
+
+                tr.innerHTML = `
+                    <td class="cell-site"><a href="https://parcels.doordash.com/exceptions?facility_code=${r.site}" target="_blank">${r.site}</a></td>
+                    <td>${r.pod}</td>
+                    <td class="cet-cell">${cetCell}</td>
+                    <td>${r.scan_start || '<span class="no-data">—</span>'}</td>
+                    <td>${r.dispatch_toggle || '<span class="no-data">—</span>'}</td>
+                    <td>${r.first_runner || '<span class="no-data">—</span>'}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+
+            // Sort indicators
+            document.querySelectorAll('th.sortable').forEach(th => {
+                th.classList.remove('sorted-asc', 'sorted-desc');
+                if (th.dataset.col === sortCol) {
+                    th.classList.add(sortAsc ? 'sorted-asc' : 'sorted-desc');
+                }
+            });
+        }
+
+        // Sorting
+        document.querySelectorAll('th.sortable').forEach(th => {
+            th.addEventListener('click', () => {
+                const col = th.dataset.col;
+                if (sortCol === col) {
+                    sortAsc = !sortAsc;
+                } else {
+                    sortCol = col;
+                    sortAsc = (col === 'site' || col === 'pod');
+                }
+                renderTable();
+            });
+        });
+
+        document.getElementById('pod-filter').addEventListener('change', renderTable);
+
+        // Refresh
+        async function refreshData() {
+            const btn = document.getElementById('refresh-btn');
+            btn.disabled = true;
+            btn.textContent = 'Scanning...';
+            document.getElementById('scan-status').textContent = 'Scanning all sites...';
+            document.getElementById('scan-status').classList.add('active');
+
+            try {
+                const resp = await fetch('/api/scorecard/refresh', { method: 'POST' });
+                const json = await resp.json();
+                DATA = json.rows;
+                document.getElementById('last-updated').textContent = 'Last updated: ' + json.last_updated;
+                renderTable();
+            } catch (e) {
+                console.error('Refresh failed:', e);
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Refresh Now';
+                document.getElementById('scan-status').textContent = '';
+                document.getElementById('scan-status').classList.remove('active');
+            }
+        }
+
+        renderTable();
+    </script>
+</body>
+</html>

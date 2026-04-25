@@ -223,6 +223,39 @@ tr:hover { background: #f8f9fa; }
 
 .row-tracked:hover { opacity: 0.8; }
 
+/* Scorecard CET */
+.cet-cell {
+    white-space: nowrap;
+}
+
+.cet-truck {
+    display: inline-block;
+    margin-right: 10px;
+    font-size: 13px;
+}
+
+.cet-late-detail {
+    font-size: 11px;
+    color: #c0392b;
+    font-weight: 500;
+}
+
+.cet-miss-link {
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.cet-miss-link:hover { text-decoration: underline; }
+
+.cet-na {
+    color: #b2bec3;
+    font-size: 12px;
+}
+
+.no-data {
+    color: #b2bec3;
+}
+
 /* Collapsible alert rows */
 .alert-row.expandable { cursor: pointer; }
 .alert-row.expandable:hover { background: #eef2f7; }

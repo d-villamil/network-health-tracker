@@ -22,6 +22,7 @@ import cet_tracker
 import exception_tracker
 import lfr_tracker
 import return_bin_tracker
+import scorecard_tracker
 import shipment_checker
 import small_batch_tracker
 import timeline_tracker
@@ -61,6 +62,7 @@ _lfr_cache = {"data": [], "fetched_at": None, "scanning": False}
 _cet_cache = {"data": [], "fetched_at": None, "scanning": False}
 _return_bin_cache = {"data": [], "fetched_at": None, "scanning": False}
 _small_batch_cache = {"data": {}, "fetched_at": None, "scanning": False}
+_scorecard_cache = {"data": [], "fetched_at": None, "scanning": False}
 _shipment_cache = {"data": [], "fetched_at": None, "scanning": False}
 _cache_lock = threading.Lock()
 
@@ -339,6 +341,37 @@ def _get_small_batch_data(force=False) -> dict[str, int]:
         return _small_batch_cache["data"]
 
 
+def _get_scorecard_data(force=False) -> list[dict]:
+    with _cache_lock:
+        now = datetime.now(ET)
+        if not force and _scorecard_cache["fetched_at"]:
+            age = (now - _scorecard_cache["fetched_at"]).total_seconds()
+            if age < CACHE_TTL:
+                return _scorecard_cache["data"]
+
+        if _scorecard_cache["scanning"]:
+            return _scorecard_cache["data"]
+
+        _scorecard_cache["scanning"] = True
+
+    try:
+        log.info("Starting scorecard scan...")
+        _check_and_refresh_auth()
+        _set_timerange()
+        results = scorecard_tracker.run(_get_sites_by_pod())
+        with _cache_lock:
+            _scorecard_cache["data"] = results
+            _scorecard_cache["fetched_at"] = datetime.now(ET)
+            _scorecard_cache["scanning"] = False
+        log.info(f"Scorecard scan complete: {len(results)} sites")
+        return results
+    except Exception as e:
+        log.error(f"Scorecard scan failed: {e}")
+        with _cache_lock:
+            _scorecard_cache["scanning"] = False
+        return _scorecard_cache["data"]
+
+
 def _get_shipment_data(force=False) -> list[dict]:
     with _cache_lock:
         now = datetime.now(ET)
@@ -438,6 +471,20 @@ def api_refresh():
     timeline = _gather_and_update_timeline(data, lfr_data, return_bin_data, small_batch_data)
     info = _cache_info()
     return jsonify({"cet_rows": cet_data, "timeline": timeline, **info})
+
+
+@app.route("/scorecard")
+def scorecard_page():
+    data = _get_scorecard_data()
+    info = _cache_info()
+    return render_template("scorecard.html", rows=data, last_updated=info["last_updated"])
+
+
+@app.route("/api/scorecard/refresh", methods=["POST"])
+def api_scorecard_refresh():
+    data = _get_scorecard_data(force=True)
+    info = _cache_info()
+    return jsonify({"rows": data, **info})
 
 
 @app.route("/shipments")

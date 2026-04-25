@@ -57,6 +57,14 @@ def update(exceptions: list[dict], return_bins: list[dict],
     rb_by_site = {r["site"]: r.get("scan_return_bin", 0) for r in return_bins}
     lfr_by_site = {r["site"]: r for r in lfr}
 
+    # Build site→pod mapping
+    pod_by_site = {}
+    for r in exceptions:
+        pod_by_site[r["site"]] = r.get("pod", "")
+    for r in lfr:
+        if r["site"] not in pod_by_site:
+            pod_by_site[r["site"]] = r.get("pod", "")
+
     # Collect all sites
     all_sites = set()
     for r in exceptions:
@@ -76,7 +84,8 @@ def update(exceptions: list[dict], return_bins: list[dict],
             "small_batches": small_batches.get(site, 0),
         }
 
-        site_state = state["sites"].setdefault(site, {"events": [], "crossed": {}})
+        site_state = state["sites"].setdefault(site, {"events": [], "crossed": {}, "pod": ""})
+        site_state["pod"] = pod_by_site.get(site, site_state.get("pod", ""))
         crossed = site_state["crossed"]
 
         for metric, threshold in THRESHOLDS.items():
