@@ -202,6 +202,14 @@ def generate_html(data: dict, tracked_actions: dict = None) -> str:
             <h1><a href="https://docs.google.com/spreadsheets/d/1cQH7gwBvAmZO8WiYNPbrCSnO8zxB0DUDhzaeMM5o-ZU/edit?gid=11136630#gid=11136630" target="_blank">Network Health Scorecard</a></h1>
             <span class="meta">Last updated: {last_updated}</span>
         </div>
+        <select id="dispatch-filter" onchange="renderTable()" style="margin-right:8px;">
+            <option value="all">All Dispatch</option>
+            <option value="on">Dispatch On</option>
+            <option value="off">Dispatch Off</option>
+        </select>
+        <select id="site-filter" onchange="renderTable()" style="margin-right:8px;">
+            <option value="all">All Sites</option>
+        </select>
         <select id="pod-filter" onchange="renderTable()">
             <option value="all">All Regions</option>
             <option value="Northeast">Northeast</option>
@@ -296,8 +304,19 @@ def generate_html(data: dict, tracked_actions: dict = None) -> str:
 
         function renderTable() {{
             const filter = document.getElementById('pod-filter').value;
+            const siteFilter = document.getElementById('site-filter').value;
+            const dispatchFilter = document.getElementById('dispatch-filter').value;
             let rows = DATA;
-            if (filter !== 'all') rows = rows.filter(r => r.pod === filter);
+            if (siteFilter !== 'all') {{
+                rows = rows.filter(r => r.site === siteFilter);
+            }} else if (filter !== 'all') {{
+                rows = rows.filter(r => r.pod === filter);
+            }}
+            if (dispatchFilter === 'on') {{
+                rows = rows.filter(r => r.dispatch_active);
+            }} else if (dispatchFilter === 'off') {{
+                rows = rows.filter(r => !r.dispatch_active);
+            }}
 
             rows = [...rows].sort((a, b) => {{
                 let va, vb;
@@ -517,6 +536,15 @@ def generate_html(data: dict, tracked_actions: dict = None) -> str:
             window.open(WEBHOOK_URL + '?' + params.toString(), '_blank');
             hideModal();
         }}
+
+        // Populate site dropdown
+        const siteSelect = document.getElementById('site-filter');
+        DATA.map(r => r.site).sort().forEach(s => {{
+            const opt = document.createElement('option');
+            opt.value = s;
+            opt.textContent = s;
+            siteSelect.appendChild(opt);
+        }});
 
         renderTable();
     </script>

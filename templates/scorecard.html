@@ -154,6 +154,14 @@
             <span id="scan-status" class="meta"></span>
         </div>
         <div class="header-right">
+            <select id="dispatch-filter" style="margin-right:8px;">
+                <option value="all">All Dispatch</option>
+                <option value="on">Dispatch On</option>
+                <option value="off">Dispatch Off</option>
+            </select>
+            <select id="site-filter" style="margin-right:8px;">
+                <option value="all">All Sites</option>
+            </select>
             <select id="pod-filter">
                 <option value="all">All Regions</option>
                 <option value="Northeast">Northeast</option>
@@ -262,9 +270,18 @@
 
         function renderTable() {
             const filter = document.getElementById('pod-filter').value;
+            const siteFilter = document.getElementById('site-filter').value;
+            const dispatchFilter = document.getElementById('dispatch-filter').value;
             let rows = DATA;
-            if (filter !== 'all') {
+            if (siteFilter !== 'all') {
+                rows = rows.filter(r => r.site === siteFilter);
+            } else if (filter !== 'all') {
                 rows = rows.filter(r => r.pod === filter);
+            }
+            if (dispatchFilter === 'on') {
+                rows = rows.filter(r => r.dispatch_active);
+            } else if (dispatchFilter === 'off') {
+                rows = rows.filter(r => !r.dispatch_active);
             }
 
             rows = [...rows].sort((a, b) => {
@@ -443,6 +460,18 @@
         });
 
         document.getElementById('pod-filter').addEventListener('change', renderTable);
+        document.getElementById('site-filter').addEventListener('change', renderTable);
+        document.getElementById('dispatch-filter').addEventListener('change', renderTable);
+
+        // Populate site dropdown
+        const siteSelect = document.getElementById('site-filter');
+        const allSites = DATA.map(r => r.site).sort();
+        allSites.forEach(s => {
+            const opt = document.createElement('option');
+            opt.value = s;
+            opt.textContent = s;
+            siteSelect.appendChild(opt);
+        });
 
         async function refreshData() {
             const btn = document.getElementById('refresh-btn');

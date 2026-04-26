@@ -496,7 +496,7 @@ def scorecard_page():
         r["return_bin"] = rb_by_site.get(r["site"], 0)
         r["lfr_over_45"] = lfr_by_site.get(r["site"], {}).get("lfr_over_45", 0)
         r["dispatch_active"] = lfr_by_site.get(r["site"], {}).get("dispatch_active", False)
-        r["plib"] = lfr_by_site.get(r["site"], {}).get("plib", 0)
+        r["plib"] = lfr_by_site.get(r["site"], {}).get("plib", 0) + r.get("needs_replan", 0)
 
     site_flags = load_site_flags() or {}
     for r in data:
@@ -524,7 +524,7 @@ def api_scorecard_refresh():
         r["return_bin"] = rb_by_site.get(r["site"], 0)
         r["lfr_over_45"] = lfr_by_site.get(r["site"], {}).get("lfr_over_45", 0)
         r["dispatch_active"] = lfr_by_site.get(r["site"], {}).get("dispatch_active", False)
-        r["plib"] = lfr_by_site.get(r["site"], {}).get("plib", 0)
+        r["plib"] = lfr_by_site.get(r["site"], {}).get("plib", 0) + r.get("needs_replan", 0)
 
     site_flags = load_site_flags() or {}
     for r in data:
