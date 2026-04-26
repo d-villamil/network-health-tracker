@@ -14,7 +14,7 @@ import json
 import logging
 import subprocess
 import sys
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -31,8 +31,20 @@ REPO_URL = "https://github.com/d-villamil/network-health-tracker.git"
 
 def fetch_scorecard_data() -> dict | None:
     """Fetch scorecard data from the running localhost dashboard."""
+    # Try cached data first (fast), fall back to refresh
     try:
-        resp = requests.post(f"{DASHBOARD_URL}/api/scorecard/refresh", timeout=300)
+        resp = requests.get(f"{DASHBOARD_URL}/api/data", timeout=30)
+        resp.raise_for_status()
+        data = resp.json()
+        if data.get("rows") and len(data["rows"]) > 0:
+            log.info(f"Using cached data ({len(data['rows'])} sites)")
+            return data
+    except Exception:
+        pass
+
+    # If no cached data, trigger refresh
+    try:
+        resp = requests.post(f"{DASHBOARD_URL}/api/scorecard/refresh", timeout=600)
         resp.raise_for_status()
         return resp.json()
     except Exception as e:
@@ -40,10 +52,49 @@ def fetch_scorecard_data() -> dict | None:
         return None
 
 
-def generate_html(data: dict) -> str:
+def fetch_tracked_actions() -> dict:
+    """Read today's tracked actions from Google Sheet. Returns {site: [{action, notes, timestamp}]}."""
+    try:
+        import gspread
+        gc = gspread.oauth(
+            credentials_filename=str(Path(__file__).parent / "credentials.json"),
+            authorized_user_filename=str(Path(__file__).parent / "token.json"),
+        )
+        ss = gc.open_by_key("1cQH7gwBvAmZO8WiYNPbrCSnO8zxB0DUDhzaeMM5o-ZU")
+        ws = ss.worksheet("Tracked Actions")
+        all_rows = ws.get_all_values()
+        if len(all_rows) <= 1:
+            return {}
+
+        today_str = date.today().strftime("%-m/%-d/%Y")
+        today_str2 = date.today().strftime("%Y-%m-%d")
+        tracked = {}
+        for row in all_rows[1:]:
+            if len(row) < 6:
+                continue
+            ts = row[0]
+            if today_str not in ts and today_str2 not in ts and str(date.today()) not in ts:
+                continue
+            site = row[1]
+            if not site:
+                continue
+            tracked.setdefault(site, []).append({
+                "timestamp": ts,
+                "action": row[4] if len(row) > 4 else "",
+                "user": row[5] if len(row) > 5 else "",
+            })
+        log.info(f"Tracked actions from sheet: {sum(len(v) for v in tracked.values())} entries across {len(tracked)} sites")
+        return tracked
+    except Exception as e:
+        log.warning(f"Could not read tracked actions: {e}")
+        return {}
+
+
+def generate_html(data: dict, tracked_actions: dict = None) -> str:
     """Generate a self-contained static HTML scorecard page."""
     rows = data.get("rows", [])
     timeline = data.get("timeline", {})
+    tracked_actions = tracked_actions or {}
     last_updated = data.get("last_updated", "Unknown")
     now = datetime.now(ET)
 
@@ -81,6 +132,9 @@ def generate_html(data: dict) -> str:
         tbody tr:hover {{ background: #426280 !important; }}
 
         .th-sub {{ font-size: 10px; font-weight: 400; color: #7799aa; text-transform: none; letter-spacing: 0; }}
+        .status-dot {{ display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 5px; vertical-align: middle; }}
+        .dot-open {{ background: #4caf50; box-shadow: 0 0 4px #4caf50; }}
+        .dot-closed {{ background: #636e72; }}
         .cell-site {{ min-width: 90px; white-space: nowrap; }}
         .cell-site a {{ color: #4fc3f7; text-decoration: none; }}
         .cell-site a:hover {{ text-decoration: underline; }}
@@ -112,6 +166,11 @@ def generate_html(data: dict) -> str:
 
         tr.row-red {{ border-left: 4px solid #ef5350; }}
         tr.row-yellow {{ border-left: 4px solid #ffc107; }}
+        tr.row-tracked {{ border-left: 4px solid #4caf50; opacity: 0.6; }}
+        tr.row-tracked:hover {{ opacity: 0.8; }}
+        .tracked-info {{ font-size: 11px; color: #4caf50; }}
+        .tracked-info a {{ color: #4caf50; text-decoration: none; }}
+        .tracked-info a:hover {{ text-decoration: underline; }}
         tr.expandable {{ cursor: pointer; }}
         .timeline-row-dark {{ background: #263849 !important; }}
         .timeline-row-dark td {{ border-bottom-color: #2a3a4e !important; }}
@@ -212,8 +271,9 @@ def generate_html(data: dict) -> str:
     </div>
 
     <script>
-        const WEBHOOK_URL = 'https://script.google.com/a/macros/doordash.com/s/AKfycbxmZFP9sfjLI6RKGdDAsfQEjdMozuNhnQqDHTs8SgeY4twnQqH-BMQ0aUa4g9VJF6RRhQ/exec';
+        const WEBHOOK_URL = 'https://script.google.com/a/macros/doordash.com/s/AKfycbw4vbemVuziIiTAXgVbvOFTJ_huWhk9L4d3dQdYaH5DydbH1Um0X0ubJEU4hP___y4grg/exec';
         const DATA = {json.dumps(rows)};
+        const TRACKED = {json.dumps(tracked_actions)};
         const TIMELINE = {json.dumps(timeline)};
         let sortCol = 'site';
         let sortAsc = true;
@@ -281,7 +341,9 @@ def generate_html(data: dict) -> str:
                     const hasAlerts = siteTimeline && siteTimeline.events && siteTimeline.events.length > 0;
                     const isExpanded = expandedSites.has(r.site);
 
+                    const isTracked = TRACKED[r.site] && TRACKED[r.site].length > 0;
                     tr.classList.add('expandable');
+                    if (isTracked) tr.classList.add('row-tracked');
                     if (isExpanded) tr.classList.add('expanded');
                     tr.addEventListener('click', (e) => {{
                         if (e.target.tagName === 'A') return;
@@ -321,7 +383,7 @@ def generate_html(data: dict) -> str:
                     const alertBadge = hasAlerts ? `<span class="alert-badge">${{siteTimeline.events.length}}</span>` : '';
 
                     tr.innerHTML = `
-                        <td class="cell-site">${{expandIcon}}<a href="https://parcels.doordash.com/exceptions?facility_code=${{r.site}}" target="_blank">${{r.site}}</a> ${{alertBadge}}</td>
+                        <td class="cell-site">${{expandIcon}}<span class="status-dot ${{r.site_open ? 'dot-open' : 'dot-closed'}}"></span><a href="https://parcels.doordash.com/exceptions?facility_code=${{r.site}}" target="_blank">${{r.site}}</a> ${{alertBadge}}</td>
                         <td>${{r.pod}}</td>
                         <td class="cet-cell">${{cetCell}}</td>
                         <td class="${{sbClass}}">${{r.small_batches || '<span class="no-data">0</span>'}}</td>
@@ -352,6 +414,22 @@ def generate_html(data: dict) -> str:
                                 tbody.appendChild(subTr);
                             }});
                         }}
+                        // Show tracked actions if any
+                        if (isTracked) {{
+                            TRACKED[r.site].forEach(t => {{
+                                const userName = t.user ? t.user.split('@')[0].replace('.', ' ') : '';
+                                const tTr = document.createElement('tr');
+                                tTr.className = 'timeline-row-dark';
+                                tTr.innerHTML = `
+                                    <td colspan="2"></td>
+                                    <td colspan="9" class="timeline-cell">
+                                        <span class="tracked-info">\u2705 ${{userName}} — ${{t.action}}</span>
+                                    </td>
+                                `;
+                                tbody.appendChild(tTr);
+                            }});
+                        }}
+
                         const trackTr = document.createElement('tr');
                         trackTr.className = 'timeline-row-dark';
                         trackTr.innerHTML = `
@@ -433,6 +511,7 @@ def generate_html(data: dict) -> str:
                 region: document.getElementById('track-pod').value,
                 quantity: document.getElementById('track-quantity').value || '0',
                 action: document.getElementById('track-exception').value,
+                analyst: analyst,
                 notes: document.getElementById('track-notes').value,
             }});
             window.open(WEBHOOK_URL + '?' + params.toString(), '_blank');
@@ -453,7 +532,8 @@ def publish(dry_run: bool = False):
         log.error("No data available — is the dashboard running?")
         return False
 
-    html = generate_html(data)
+    tracked_actions = fetch_tracked_actions()
+    html = generate_html(data, tracked_actions)
     output = GH_PAGES_DIR / "index.html"
     output.write_text(html)
     log.info(f"Generated {output} ({len(html)} bytes, {len(data['rows'])} sites)")

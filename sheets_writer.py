@@ -31,7 +31,7 @@ SHIPMENT_HEADERS = [
 ]
 
 TRACKED_HEADERS = [
-    "Timestamp", "Site", "Region", "Quantity", "Exception Type", "Notes",
+    "Timestamp", "Site", "Region", "Quantity", "Exception Type", "Submitted By", "Notes",
 ]
 
 
@@ -158,6 +158,7 @@ class SheetsWriter:
             row.get("pod", ""),
             row.get("quantity", 0),
             row.get("action", ""),
+            row.get("analyst", ""),
             row.get("notes", ""),
         ], value_input_option="USER_ENTERED")
         log.info(f"Tracked action written: {row['site']}")

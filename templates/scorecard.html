@@ -33,6 +33,9 @@
         .cell-red-dark { background: #5a2626; color: #ef5350; font-weight: 600; }
         .cell-yellow-dark { background: #5a5a26; color: #ffca28; font-weight: 600; }
 
+        .status-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 5px; vertical-align: middle; }
+        .dot-open { background: #4caf50; box-shadow: 0 0 4px #4caf50; }
+        .dot-closed { background: #636e72; }
         .cell-site { min-width: 90px; white-space: nowrap; }
         .cell-site a { color: #4fc3f7; }
         .cet-cell { white-space: normal !important; min-width: 150px; }
@@ -370,7 +373,7 @@
                 const alertBadge = hasAlerts ? `<span class="alert-badge">${siteTimeline.events.length}</span>` : '';
 
                 tr.innerHTML = `
-                    <td class="cell-site">${expandIcon}<a href="https://parcels.doordash.com/exceptions?facility_code=${r.site}" target="_blank">${r.site}</a> ${alertBadge}</td>
+                    <td class="cell-site">${expandIcon}<span class="status-dot ${r.site_open ? 'dot-open' : 'dot-closed'}"></span><a href="https://parcels.doordash.com/exceptions?facility_code=${r.site}" target="_blank">${r.site}</a> ${alertBadge}</td>
                     <td>${r.pod}</td>
                     <td class="cet-cell">${cetCell}</td>
                     <td class="${sbClass}">${r.small_batches || '<span class="no-data">0</span>'}</td>

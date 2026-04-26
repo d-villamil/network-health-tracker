@@ -249,6 +249,15 @@ def run(sites_by_pod: dict[str, list[str]]) -> list[dict]:
     baselines = get_baselines()
     baseline_by_site = {r["site"]: r for r in baselines}
 
+    log.info("Fetching operating status...")
+    fac_data = _call_parcel_cli(["parcel-cli", "facility", "list", "--format", "json"])
+    status_by_site = {}
+    if fac_data:
+        for r in (fac_data.get("rows") or []):
+            code = r.get("facility_code", "")
+            status = r.get("operating_status", "")
+            status_by_site[code] = status == "FACILITY_OPERATING_STATUS_OPEN"
+
     results = []
     for pod, sites in sites_by_pod.items():
         for site in sites:
@@ -258,6 +267,7 @@ def run(sites_by_pod: dict[str, list[str]]) -> list[dict]:
             results.append({
                 "site": site,
                 "pod": pod,
+                "site_open": status_by_site.get(site, False),
                 "cet_trucks": cet["trucks"],
                 "cet_met": cet["met_count"],
                 "cet_total": cet["total"],
