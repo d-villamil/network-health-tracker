@@ -191,13 +191,16 @@ def generate_html(data: dict) -> str:
                 <label>Analyst Name</label>
                 <input type="text" id="track-analyst" required placeholder="Your name">
                 <label>Exception Type</label>
-                <select id="track-exception" required>
+                <select id="track-exception" required onchange="updateQuantity()">
                     <option value="">Select exception...</option>
                     <option value="Needs Replan">Needs Replan</option>
                     <option value="Small Batch">Small Batch</option>
                     <option value="Return Bin">Return Bin</option>
+                    <option value="PLIB">PLIB</option>
                     <option value="Dispatch">Dispatch</option>
                 </select>
+                <label>Quantity</label>
+                <input type="text" id="track-quantity" readonly>
                 <label>Notes</label>
                 <textarea id="track-notes" rows="3" placeholder="What did you do? How did it impact the value?"></textarea>
                 <div class="modal-actions">
@@ -399,9 +402,22 @@ def generate_html(data: dict) -> str:
             document.getElementById('track-rb').value = rb;
             document.getElementById('track-plib').value = plib;
             document.getElementById('track-exception').value = '';
+            document.getElementById('track-quantity').value = '';
             document.getElementById('track-notes').value = '';
             document.getElementById('track-analyst').value = localStorage.getItem('dashboard_analyst') || '';
             document.getElementById('modal-overlay').classList.remove('hidden');
+        }}
+
+        function updateQuantity() {{
+            const type = document.getElementById('track-exception').value;
+            const map = {{
+                'Needs Replan': document.getElementById('track-replan').value,
+                'Small Batch': document.getElementById('track-sb').value,
+                'Return Bin': document.getElementById('track-rb').value,
+                'PLIB': document.getElementById('track-plib').value,
+                'Dispatch': '0',
+            }};
+            document.getElementById('track-quantity').value = map[type] || '';
         }}
 
         function hideModal() {{ document.getElementById('modal-overlay').classList.add('hidden'); }}
@@ -415,12 +431,8 @@ def generate_html(data: dict) -> str:
                 timestamp: now,
                 site: document.getElementById('track-site').value,
                 region: document.getElementById('track-pod').value,
-                analyst: analyst,
+                quantity: document.getElementById('track-quantity').value || '0',
                 action: document.getElementById('track-exception').value,
-                needs_replan: document.getElementById('track-replan').value,
-                small_batches: document.getElementById('track-sb').value,
-                return_bin: document.getElementById('track-rb').value,
-                plib: document.getElementById('track-plib').value,
                 notes: document.getElementById('track-notes').value,
             }});
             window.open(WEBHOOK_URL + '?' + params.toString(), '_blank');

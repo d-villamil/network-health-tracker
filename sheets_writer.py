@@ -31,8 +31,7 @@ SHIPMENT_HEADERS = [
 ]
 
 TRACKED_HEADERS = [
-    "Timestamp", "Site", "Pod", "Needs Replan", "Missing",
-    "Delivery Hold", "Total", "Analyst", "Action", "Notes",
+    "Timestamp", "Site", "Region", "Quantity", "Exception Type", "Notes",
 ]
 
 
@@ -154,15 +153,11 @@ class SheetsWriter:
 
         ws = self._get_or_create_tab(self._tracked_tab, TRACKED_HEADERS)
         ws.append_row([
-            row["timestamp"],
-            row["site"],
-            row["pod"],
-            row["needs_replan"],
-            row["missing"],
-            row["delivery_hold"],
-            row["total"],
-            row["analyst"],
-            row["action"],
-            row["notes"],
+            row.get("timestamp", ""),
+            row.get("site", ""),
+            row.get("pod", ""),
+            row.get("quantity", 0),
+            row.get("action", ""),
+            row.get("notes", ""),
         ], value_input_option="USER_ENTERED")
-        log.info(f"Tracked action written: {row['site']} by {row['analyst']}")
+        log.info(f"Tracked action written: {row['site']}")

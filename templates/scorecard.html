@@ -201,8 +201,8 @@
                 <input type="hidden" id="track-site">
                 <input type="hidden" id="track-pod">
                 <input type="hidden" id="track-replan">
-                <input type="hidden" id="track-small-batches">
-                <input type="hidden" id="track-return-bin">
+                <input type="hidden" id="track-sb">
+                <input type="hidden" id="track-rb">
                 <input type="hidden" id="track-plib">
 
                 <label for="track-analyst">Analyst Name</label>
@@ -210,13 +210,17 @@
                        style="background:#2a3d50;color:#dce4ec;border-color:#456a85;">
 
                 <label for="track-exception-type">Exception Type</label>
-                <select id="track-exception-type" required style="background:#2a3d50;color:#dce4ec;border-color:#456a85;">
+                <select id="track-exception-type" required style="background:#2a3d50;color:#dce4ec;border-color:#456a85;" onchange="updateQuantity()">
                     <option value="">Select exception...</option>
                     <option value="Needs Replan">Needs Replan</option>
                     <option value="Small Batch">Small Batch</option>
                     <option value="Return Bin">Return Bin</option>
+                    <option value="PLIB">PLIB</option>
                     <option value="Dispatch">Dispatch</option>
                 </select>
+
+                <label>Quantity</label>
+                <input type="text" id="track-quantity" readonly style="background:#1e2d3d;color:#dce4ec;border-color:#456a85;">
 
                 <label for="track-notes">Notes</label>
                 <textarea id="track-notes" rows="3" placeholder="What did you do? How did it impact the value?"
@@ -476,14 +480,27 @@
             document.getElementById('track-site').value = site;
             document.getElementById('track-pod').value = pod;
             document.getElementById('track-replan').value = replan;
-            document.getElementById('track-small-batches').value = smallBatches;
-            document.getElementById('track-return-bin').value = returnBin;
+            document.getElementById('track-sb').value = smallBatches;
+            document.getElementById('track-rb').value = returnBin;
             document.getElementById('track-plib').value = plib;
             document.getElementById('track-exception-type').value = '';
+            document.getElementById('track-quantity').value = '';
             document.getElementById('track-notes').value = '';
             const saved = localStorage.getItem('dashboard_analyst') || '';
             document.getElementById('track-analyst').value = saved;
             document.getElementById('modal-overlay').classList.remove('hidden');
+        }
+
+        function updateQuantity() {
+            const type = document.getElementById('track-exception-type').value;
+            const map = {
+                'Needs Replan': document.getElementById('track-replan').value,
+                'Small Batch': document.getElementById('track-sb').value,
+                'Return Bin': document.getElementById('track-rb').value,
+                'PLIB': document.getElementById('track-plib').value,
+                'Dispatch': '0',
+            };
+            document.getElementById('track-quantity').value = map[type] || '';
         }
 
         function hideModal() {
@@ -504,10 +521,7 @@
             const body = {
                 site: document.getElementById('track-site').value,
                 pod: document.getElementById('track-pod').value,
-                needs_replan: parseInt(document.getElementById('track-replan').value),
-                missing: 0,
-                delivery_hold: 0,
-                total: parseInt(document.getElementById('track-replan').value),
+                quantity: parseInt(document.getElementById('track-quantity').value) || 0,
                 analyst: analyst,
                 action: document.getElementById('track-exception-type').value,
                 notes: document.getElementById('track-notes').value,

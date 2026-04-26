@@ -558,11 +558,7 @@ def api_track():
         "timestamp": now.strftime("%-I:%M %p ET"),
         "site": body["site"],
         "pod": body.get("pod", ""),
-        "needs_replan": body.get("needs_replan", 0),
-        "missing": body.get("missing", 0),
-        "delivery_hold": body.get("delivery_hold", 0),
-        "total": body.get("total", 0),
-        "analyst": body.get("analyst", ""),
+        "quantity": body.get("quantity", 0),
         "action": body.get("action", ""),
         "notes": body.get("notes", ""),
     }
@@ -570,13 +566,10 @@ def api_track():
     try:
         writer = SheetsWriter()
         writer.write_tracked_action(row)
-        _save_tracked_site(row["site"], row["analyst"], row["action"], row["timestamp"], values={
-            "needs_replan": row["needs_replan"],
-            "missing": row["missing"],
-            "delivery_hold": row["delivery_hold"],
-            "total": row["total"],
+        _save_tracked_site(row["site"], body.get("analyst", ""), row["action"], row["timestamp"], values={
+            "quantity": row["quantity"],
         })
-        log.info(f"Tracked: {row['site']} by {row['analyst']} — {row['action']}")
+        log.info(f"Tracked: {row['site']} — {row['action']}")
         return jsonify({"ok": True})
     except Exception as e:
         log.error(f"Track write failed: {e}")
