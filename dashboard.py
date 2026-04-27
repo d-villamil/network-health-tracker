@@ -510,9 +510,9 @@ def scorecard_page():
 @app.route("/api/scorecard/refresh", methods=["POST"])
 def api_scorecard_refresh():
     data = _get_scorecard_data(force=True)
-    exc_data = _get_data(force=True)
+    exc_data = _get_data()
     return_bin_data = _get_return_bin_data()
-    lfr_data = _get_lfr_data(force=True)
+    lfr_data = _get_lfr_data()
     timeline = timeline_tracker.get_timeline()
     info = _cache_info()
 

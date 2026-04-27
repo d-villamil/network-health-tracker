@@ -5,7 +5,7 @@ A real-time dashboard that surfaces site health across the DashLink spoke networ
 
 **Live URL:** https://d-villamil.github.io/network-health-tracker/
 
-The scorecard auto-updates every 30 minutes during ops hours (5 AM – 2 PM ET). All times shown are in the site's local timezone.
+The scorecard auto-updates every 15 minutes during ops hours (5 AM – 2 PM ET). All times shown are in the site's local timezone.
 
 ---
 
@@ -190,7 +190,7 @@ Use Track It to log an action taken on a site. This creates a record in the shar
 | Batch status (LFR, PLIB, dispatch) | parcel-cli batch list | Every 3 min |
 | Operating status (open/closed) | parcel-cli facility list | Every scorecard refresh |
 | Flags | Slack channels + Google Sheets | Manually refreshed daily |
-| GitHub Pages | Published from localhost | Every 30 min (5 AM – 2 PM ET) |
+| GitHub Pages | Published from localhost | Every 15 min (5 AM – 2 PM ET) |
 
 ---
 

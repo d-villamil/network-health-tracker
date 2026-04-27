@@ -29,9 +29,14 @@ GH_PAGES_DIR = Path(__file__).parent / "gh-pages"
 REPO_URL = "https://github.com/d-villamil/network-health-tracker.git"
 
 
-def fetch_scorecard_data() -> dict | None:
+def fetch_scorecard_data(force=False) -> dict | None:
     """Fetch scorecard data from the running localhost dashboard."""
-    # Always use scorecard refresh to get merged data (needs_replan, plib, dispatch, etc.)
+    # Only do full refresh during ops hours (5am-2pm ET) for scheduled runs
+    now_et = datetime.now(ET)
+    if now_et.hour >= 14 and not force:
+        log.info(f"After ops hours ({now_et.strftime('%-I:%M %p ET')}) — skipping publish")
+        return None
+
     try:
         resp = requests.post(f"{DASHBOARD_URL}/api/scorecard/refresh", timeout=600)
         resp.raise_for_status()
@@ -92,8 +97,8 @@ def generate_html(data: dict, tracked_actions: dict = None) -> str:
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📦</text></svg>">
-    <title>📦🏥 Network Health Scorecard</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏥</text></svg>">
+    <title>📦 Network Health Scorecard</title>
     <style>
         * {{ margin: 0; padding: 0; box-sizing: border-box; }}
         body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #2a3d50; color: #e0e6ed; font-size: 14px; }}
@@ -126,6 +131,15 @@ def generate_html(data: dict, tracked_actions: dict = None) -> str:
         .site-dropdown.open {{ display:block; }}
         .site-dropdown-item {{ padding:6px 12px; cursor:pointer; font-size:13px; color:#dce4ec; }}
         .site-dropdown-item:hover {{ background:#456a85; }}
+
+        [data-tip] {{ position: relative; cursor: default; }}
+        [data-tip]:hover::after {{
+            content: attr(data-tip);
+            position: absolute; bottom: 100%%; left: 50%%; transform: translateX(-50%%);
+            background: #1a2a3a; color: #dce4ec; padding: 4px 8px; border-radius: 4px;
+            font-size: 11px; white-space: nowrap; z-index: 99; pointer-events: none;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+        }}
 
         .status-dot {{ display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 5px; vertical-align: middle; }}
         .dot-open {{ background: #4caf50; box-shadow: 0 0 4px #4caf50; }}
@@ -216,7 +230,7 @@ def generate_html(data: dict, tracked_actions: dict = None) -> str:
             <option value="West">West</option>
         </select>
     </header>
-    <div class="published">Published {now.strftime("%-I:%M %p ET, %B %d")} — auto-refreshes every 30 min during ops hours</div>
+    <div class="published">Published {now.strftime("%-I:%M %p ET, %B %d")} — auto-refreshes every 15 min during ops hours</div>
 
     <main>
         <section class="section">
@@ -403,8 +417,8 @@ def generate_html(data: dict, tracked_actions: dict = None) -> str:
                         <td>${{r.pod}}</td>
                         <td class="cet-cell">${{cetCell}}</td>
                         <td class="${{sbClass}}">${{r.small_batches || '<span class="no-data">0</span>'}}</td>
-                        <td class="${{scanClass}}" title="${{scanTitle}}">${{r.scan_start || '<span class="no-data">—</span>'}}</td>
-                        <td class="${{dispatchClass}}" title="${{dispatchTitle}}">${{r.dispatch_toggle ? '<span class="dispatch-dot"></span>' : r.has_active_runners ? '<span class="dispatch-dot-yellow"></span>' : ''}}${{r.dispatch_start || '<span class="no-data">—</span>'}}</td>
+                        <td class="${{scanClass}}" data-tip="${{scanTitle}}">${{r.scan_start || '<span class="no-data">—</span>'}}</td>
+                        <td class="${{dispatchClass}}" data-tip="${{dispatchTitle}}">${{r.dispatch_toggle ? '<span class="dispatch-dot"></span>' : r.has_active_runners ? '<span class="dispatch-dot-yellow"></span>' : ''}}${{r.dispatch_start || '<span class="no-data">—</span>'}}</td>
                         <td class="${{r.needs_replan >= 35 ? 'cell-red-dark' : r.needs_replan >= 15 ? 'cell-yellow-dark' : ''}}">${{r.needs_replan || '<span class="no-data">0</span>'}}</td>
                         <td class="${{r.return_bin >= 15 ? 'cell-red-dark' : r.return_bin >= 5 ? 'cell-yellow-dark' : ''}}">${{r.return_bin || '<span class="no-data">0</span>'}}</td>
                         <td class="${{r.lfr_over_45 > 0 ? 'cell-yellow-dark' : ''}}">${{r.lfr_over_45 || '<span class="no-data">0</span>'}}</td>
@@ -568,10 +582,10 @@ def generate_html(data: dict, tracked_actions: dict = None) -> str:
 </html>"""
 
 
-def publish(dry_run: bool = False):
+def publish(dry_run: bool = False, force: bool = False):
     """Fetch data, generate HTML, push to gh-pages."""
     log.info("Fetching scorecard data from localhost...")
-    data = fetch_scorecard_data()
+    data = fetch_scorecard_data(force=force)
     if not data or not data.get("rows"):
         log.error("No data available — is the dashboard running?")
         return False
@@ -624,8 +638,9 @@ def publish(dry_run: bool = False):
 def main():
     parser = argparse.ArgumentParser(description="Publish scorecard to GitHub Pages")
     parser.add_argument("--dry-run", action="store_true", help="Generate HTML only, don't push")
+    parser.add_argument("--force", action="store_true", help="Publish even outside ops hours")
     args = parser.parse_args()
-    publish(dry_run=args.dry_run)
+    publish(dry_run=args.dry_run, force=args.force)
 
 
 if __name__ == "__main__":

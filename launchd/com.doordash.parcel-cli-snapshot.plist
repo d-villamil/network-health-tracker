@@ -14,10 +14,10 @@
     <key>WorkingDirectory</key>
     <string>/Users/david.villamil/parcel-cli</string>
 
-    <!-- Run at 7:00 PM ET (19:00) daily -->
+    <!-- Run at 6:00 PM ET (18:00) daily -->
     <key>StartCalendarInterval</key>
     <dict>
-        <key>Hour</key><integer>19</integer>
+        <key>Hour</key><integer>18</integer>
         <key>Minute</key><integer>0</integer>
     </dict>
 

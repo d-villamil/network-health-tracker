@@ -33,7 +33,7 @@ TIMELINE_FILE = Path(__file__).parent / "state" / "timeline_today.json"
 def get_scorecard_data() -> list[dict]:
     """Fetch current scorecard data from localhost dashboard."""
     try:
-        resp = requests.post(f"{DASHBOARD_URL}/api/scorecard/refresh", timeout=300)
+        resp = requests.post(f"{DASHBOARD_URL}/api/scorecard/refresh", timeout=600)
         resp.raise_for_status()
         return resp.json().get("rows", [])
     except Exception as e:

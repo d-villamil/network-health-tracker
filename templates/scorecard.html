@@ -38,6 +38,15 @@
         .site-dropdown-item { padding:6px 12px; cursor:pointer; font-size:13px; color:#dce4ec; }
         .site-dropdown-item:hover { background:#456a85; }
 
+        [data-tip] { position: relative; cursor: default; }
+        [data-tip]:hover::after {
+            content: attr(data-tip);
+            position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%);
+            background: #1a2a3a; color: #dce4ec; padding: 4px 8px; border-radius: 4px;
+            font-size: 11px; white-space: nowrap; z-index: 99; pointer-events: none;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+        }
+
         .status-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 5px; vertical-align: middle; }
         .dot-open { background: #4caf50; box-shadow: 0 0 4px #4caf50; }
         .dot-closed { background: #636e72; }
@@ -410,8 +419,8 @@
                     <td>${r.pod}</td>
                     <td class="cet-cell">${cetCell}</td>
                     <td class="${sbClass}">${r.small_batches || '<span class="no-data">0</span>'}</td>
-                    <td class="${scanClass}" title="${scanTitle}">${r.scan_start || '<span class="no-data">—</span>'}</td>
-                    <td class="${dispatchClass}" title="${dispatchTitle}">${r.dispatch_toggle ? '<span class="dispatch-dot"></span>' : r.has_active_runners ? '<span class="dispatch-dot-yellow"></span>' : ''}${r.dispatch_start || '<span class="no-data">—</span>'}</td>
+                    <td class="${scanClass}" data-tip="${scanTitle}">${r.scan_start || '<span class="no-data">—</span>'}</td>
+                    <td class="${dispatchClass}" data-tip="${dispatchTitle}">${r.dispatch_toggle ? '<span class="dispatch-dot"></span>' : r.has_active_runners ? '<span class="dispatch-dot-yellow"></span>' : ''}${r.dispatch_start || '<span class="no-data">—</span>'}</td>
                     <td class="${r.needs_replan >= 35 ? 'cell-red-dark' : r.needs_replan >= 15 ? 'cell-yellow-dark' : ''}">${r.needs_replan || '<span class="no-data">0</span>'}</td>
                     <td class="${r.return_bin >= 15 ? 'cell-red-dark' : r.return_bin >= 5 ? 'cell-yellow-dark' : ''}">${r.return_bin || '<span class="no-data">0</span>'}</td>
                     <td class="${r.lfr_over_45 > 0 ? 'cell-yellow-dark' : ''}">${r.lfr_over_45 || '<span class="no-data">0</span>'}</td>
