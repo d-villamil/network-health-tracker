@@ -60,6 +60,14 @@ def save_snapshot(dry_run: bool = False):
     scorecard = get_scorecard_data()
     timeline = get_timeline()
 
+    # Load flags
+    flags_file = Path(__file__).parent / "state" / "site_flags_today.json"
+    flags = {}
+    if flags_file.exists():
+        flags_data = json.loads(flags_file.read_text())
+        if flags_data.get("date") == today_str:
+            flags = flags_data.get("sites", {})
+
     if not scorecard:
         log.error("No scorecard data — is the dashboard running?")
         return
@@ -68,7 +76,7 @@ def save_snapshot(dry_run: bool = False):
     summary_headers = [
         "Site", "Region", "CET Met", "CET Total",
         "Sort Scan Start", "Dispatch Start",
-        "Needs Replan", "Return Bin", "LFR > 45m", "PLIB", "Small Batches",
+        "Needs Replan", "Return Bin", "LFR > 45m", "PLIB", "Small Batches", "Flags",
     ]
     summary_rows = [summary_headers]
     for r in scorecard:
@@ -84,6 +92,7 @@ def save_snapshot(dry_run: bool = False):
             r.get("lfr_over_45", 0),
             r.get("plib", 0),
             r.get("small_batches", 0),
+            "; ".join(f"[{f['category']}] {f['preview'][:50]}" for f in flags.get(r.get("site", ""), [])) or "",
         ])
 
     # Build timeline event rows
