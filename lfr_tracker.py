@@ -61,10 +61,23 @@ def get_lfr_batches(site: str) -> dict:
         "BATCH_STATUS_TYPE_READY_TO_DISPATCH",
     }
 
-    dispatch_active = any(
+    has_active_runners = any(
         row.get("batch_status_type", "") in DISPATCH_ACTIVE_STATUSES
         for row in (data.get("rows") or [])
     )
+
+    # Check dispatch toggle from dispatch-stats
+    dispatch_stats = _call_parcel_cli([
+        "parcel-cli", "batch", "dispatch-stats", "-f", site, "--format", "json",
+    ])
+    dispatch_toggle = False
+    if dispatch_stats:
+        for row in (dispatch_stats.get("rows") or []):
+            if row.get("automatic_dispatch_status"):
+                dispatch_toggle = True
+                break
+
+    dispatch_active = dispatch_toggle or has_active_runners
 
     plib = sum(
         (row.get("partial_parcels_count") or 0)
@@ -88,7 +101,7 @@ def get_lfr_batches(site: str) -> dict:
             continue
 
     if not lfr_batches:
-        return {"total_lfr": 0, "lfr_over_45": 0, "first_lfr_time": "", "max_wait_min": 0, "dispatch_active": dispatch_active, "plib": plib}
+        return {"total_lfr": 0, "lfr_over_45": 0, "first_lfr_time": "", "max_wait_min": 0, "dispatch_active": dispatch_active, "dispatch_toggle": dispatch_toggle, "has_active_runners": has_active_runners, "plib": plib}
 
     over_45 = [b for b in lfr_batches if b["wait_min"] > 45]
     earliest = min(lfr_batches, key=lambda b: b["time"])
@@ -100,6 +113,8 @@ def get_lfr_batches(site: str) -> dict:
         "first_lfr_time": earliest["time"].strftime("%-I:%M %p ET"),
         "max_wait_min": int(longest["wait_min"]),
         "dispatch_active": dispatch_active,
+        "dispatch_toggle": dispatch_toggle,
+        "has_active_runners": has_active_runners,
         "plib": plib,
     }
 
@@ -120,6 +135,8 @@ def run(sites_by_pod: dict[str, list[str]]) -> list[dict]:
                 "first_lfr_time": lfr["first_lfr_time"],
                 "max_wait_min": lfr["max_wait_min"],
                 "dispatch_active": lfr["dispatch_active"],
+                "dispatch_toggle": lfr["dispatch_toggle"],
+                "has_active_runners": lfr["has_active_runners"],
                 "plib": lfr["plib"],
             })
 

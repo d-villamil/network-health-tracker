@@ -33,6 +33,11 @@
         .cell-red-dark { background: #5a2626; color: #ef5350; font-weight: 600; }
         .cell-yellow-dark { background: #5a5a26; color: #ffca28; font-weight: 600; }
 
+        .site-dropdown { position:absolute; top:100%; left:0; width:100%; max-height:200px; overflow-y:auto; background:#334d63; border:1px solid #456a85; border-radius:6px; z-index:50; display:none; }
+        .site-dropdown.open { display:block; }
+        .site-dropdown-item { padding:6px 12px; cursor:pointer; font-size:13px; color:#dce4ec; }
+        .site-dropdown-item:hover { background:#456a85; }
+
         .status-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 5px; vertical-align: middle; }
         .dot-open { background: #4caf50; box-shadow: 0 0 4px #4caf50; }
         .dot-closed { background: #636e72; }
@@ -90,6 +95,16 @@
             margin-right: 6px;
             vertical-align: middle;
             box-shadow: 0 0 4px #4caf50;
+        }
+        .dispatch-dot-yellow {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            background: #ffc107;
+            border-radius: 50%;
+            margin-right: 6px;
+            vertical-align: middle;
+            box-shadow: 0 0 4px #ffc107;
         }
 
         /* Region headers */
@@ -159,9 +174,11 @@
                 <option value="on">Dispatch On</option>
                 <option value="off">Dispatch Off</option>
             </select>
-            <select id="site-filter" style="margin-right:8px;">
-                <option value="all">All Sites</option>
-            </select>
+            <div class="site-search-wrap" style="margin-right:8px;position:relative;display:inline-block;">
+                <input type="text" id="site-search" placeholder="Search site..." autocomplete="off"
+                       style="width:120px;padding:6px 12px;border-radius:6px;border:1px solid #456a85;background:#334d63;color:#dce4ec;font-size:13px;">
+                <div id="site-dropdown" class="site-dropdown"></div>
+            </div>
             <select id="pod-filter">
                 <option value="all">All Regions</option>
                 <option value="Northeast">Northeast</option>
@@ -270,11 +287,10 @@
 
         function renderTable() {
             const filter = document.getElementById('pod-filter').value;
-            const siteFilter = document.getElementById('site-filter').value;
             const dispatchFilter = document.getElementById('dispatch-filter').value;
             let rows = DATA;
-            if (siteFilter !== 'all') {
-                rows = rows.filter(r => r.site === siteFilter);
+            if (selectedSite !== 'all') {
+                rows = rows.filter(r => r.site === selectedSite);
             } else if (filter !== 'all') {
                 rows = rows.filter(r => r.pod === filter);
             }
@@ -395,7 +411,7 @@
                     <td class="cet-cell">${cetCell}</td>
                     <td class="${sbClass}">${r.small_batches || '<span class="no-data">0</span>'}</td>
                     <td class="${scanClass}" title="${scanTitle}">${r.scan_start || '<span class="no-data">—</span>'}</td>
-                    <td class="${dispatchClass}" title="${dispatchTitle}">${r.dispatch_active ? '<span class="dispatch-dot"></span>' : ''}${r.dispatch_start || '<span class="no-data">—</span>'}</td>
+                    <td class="${dispatchClass}" title="${dispatchTitle}">${r.dispatch_toggle ? '<span class="dispatch-dot"></span>' : r.has_active_runners ? '<span class="dispatch-dot-yellow"></span>' : ''}${r.dispatch_start || '<span class="no-data">—</span>'}</td>
                     <td class="${r.needs_replan >= 35 ? 'cell-red-dark' : r.needs_replan >= 15 ? 'cell-yellow-dark' : ''}">${r.needs_replan || '<span class="no-data">0</span>'}</td>
                     <td class="${r.return_bin >= 15 ? 'cell-red-dark' : r.return_bin >= 5 ? 'cell-yellow-dark' : ''}">${r.return_bin || '<span class="no-data">0</span>'}</td>
                     <td class="${r.lfr_over_45 > 0 ? 'cell-yellow-dark' : ''}">${r.lfr_over_45 || '<span class="no-data">0</span>'}</td>
@@ -460,17 +476,34 @@
         });
 
         document.getElementById('pod-filter').addEventListener('change', renderTable);
-        document.getElementById('site-filter').addEventListener('change', renderTable);
         document.getElementById('dispatch-filter').addEventListener('change', renderTable);
 
-        // Populate site dropdown
-        const siteSelect = document.getElementById('site-filter');
+        // Site search
         const allSites = DATA.map(r => r.site).sort();
-        allSites.forEach(s => {
-            const opt = document.createElement('option');
-            opt.value = s;
-            opt.textContent = s;
-            siteSelect.appendChild(opt);
+        let selectedSite = 'all';
+        const siteInput = document.getElementById('site-search');
+        const siteDropdown = document.getElementById('site-dropdown');
+
+        function showSiteDropdown(filter) {
+            const q = (filter || '').toUpperCase();
+            const matches = q ? allSites.filter(s => s.includes(q)) : allSites;
+            siteDropdown.innerHTML = '<div class="site-dropdown-item" data-val="all">All Sites</div>' +
+                matches.map(s => `<div class="site-dropdown-item" data-val="${s}">${s}</div>`).join('');
+            siteDropdown.classList.add('open');
+        }
+
+        siteInput.addEventListener('focus', () => showSiteDropdown(siteInput.value));
+        siteInput.addEventListener('input', () => showSiteDropdown(siteInput.value));
+        siteDropdown.addEventListener('click', (e) => {
+            const item = e.target.closest('.site-dropdown-item');
+            if (!item) return;
+            selectedSite = item.dataset.val;
+            siteInput.value = selectedSite === 'all' ? '' : selectedSite;
+            siteDropdown.classList.remove('open');
+            renderTable();
+        });
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('.site-search-wrap')) siteDropdown.classList.remove('open');
         });
 
         async function refreshData() {

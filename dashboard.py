@@ -496,6 +496,8 @@ def scorecard_page():
         r["return_bin"] = rb_by_site.get(r["site"], 0)
         r["lfr_over_45"] = lfr_by_site.get(r["site"], {}).get("lfr_over_45", 0)
         r["dispatch_active"] = lfr_by_site.get(r["site"], {}).get("dispatch_active", False)
+        r["dispatch_toggle"] = lfr_by_site.get(r["site"], {}).get("dispatch_toggle", False)
+        r["has_active_runners"] = lfr_by_site.get(r["site"], {}).get("has_active_runners", False)
         r["plib"] = lfr_by_site.get(r["site"], {}).get("plib", 0) + r.get("needs_replan", 0)
 
     site_flags = load_site_flags() or {}
@@ -508,9 +510,9 @@ def scorecard_page():
 @app.route("/api/scorecard/refresh", methods=["POST"])
 def api_scorecard_refresh():
     data = _get_scorecard_data(force=True)
-    exc_data = _get_data()
+    exc_data = _get_data(force=True)
     return_bin_data = _get_return_bin_data()
-    lfr_data = _get_lfr_data()
+    lfr_data = _get_lfr_data(force=True)
     timeline = timeline_tracker.get_timeline()
     info = _cache_info()
 
@@ -524,6 +526,8 @@ def api_scorecard_refresh():
         r["return_bin"] = rb_by_site.get(r["site"], 0)
         r["lfr_over_45"] = lfr_by_site.get(r["site"], {}).get("lfr_over_45", 0)
         r["dispatch_active"] = lfr_by_site.get(r["site"], {}).get("dispatch_active", False)
+        r["dispatch_toggle"] = lfr_by_site.get(r["site"], {}).get("dispatch_toggle", False)
+        r["has_active_runners"] = lfr_by_site.get(r["site"], {}).get("has_active_runners", False)
         r["plib"] = lfr_by_site.get(r["site"], {}).get("plib", 0) + r.get("needs_replan", 0)
 
     site_flags = load_site_flags() or {}

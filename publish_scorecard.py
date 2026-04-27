@@ -31,18 +31,7 @@ REPO_URL = "https://github.com/d-villamil/network-health-tracker.git"
 
 def fetch_scorecard_data() -> dict | None:
     """Fetch scorecard data from the running localhost dashboard."""
-    # Try cached data first (fast), fall back to refresh
-    try:
-        resp = requests.get(f"{DASHBOARD_URL}/api/data", timeout=30)
-        resp.raise_for_status()
-        data = resp.json()
-        if data.get("rows") and len(data["rows"]) > 0:
-            log.info(f"Using cached data ({len(data['rows'])} sites)")
-            return data
-    except Exception:
-        pass
-
-    # If no cached data, trigger refresh
+    # Always use scorecard refresh to get merged data (needs_replan, plib, dispatch, etc.)
     try:
         resp = requests.post(f"{DASHBOARD_URL}/api/scorecard/refresh", timeout=600)
         resp.raise_for_status()
@@ -103,7 +92,8 @@ def generate_html(data: dict, tracked_actions: dict = None) -> str:
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Network Health Scorecard</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📦</text></svg>">
+    <title>📦🏥 Network Health Scorecard</title>
     <style>
         * {{ margin: 0; padding: 0; box-sizing: border-box; }}
         body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #2a3d50; color: #e0e6ed; font-size: 14px; }}
@@ -132,6 +122,11 @@ def generate_html(data: dict, tracked_actions: dict = None) -> str:
         tbody tr:hover {{ background: #426280 !important; }}
 
         .th-sub {{ font-size: 10px; font-weight: 400; color: #7799aa; text-transform: none; letter-spacing: 0; }}
+        .site-dropdown {{ position:absolute; top:100%%; left:0; width:100%%; max-height:200px; overflow-y:auto; background:#334d63; border:1px solid #456a85; border-radius:6px; z-index:50; display:none; }}
+        .site-dropdown.open {{ display:block; }}
+        .site-dropdown-item {{ padding:6px 12px; cursor:pointer; font-size:13px; color:#dce4ec; }}
+        .site-dropdown-item:hover {{ background:#456a85; }}
+
         .status-dot {{ display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 5px; vertical-align: middle; }}
         .dot-open {{ background: #4caf50; box-shadow: 0 0 4px #4caf50; }}
         .dot-closed {{ background: #636e72; }}
@@ -152,6 +147,7 @@ def generate_html(data: dict, tracked_actions: dict = None) -> str:
         .cet-na {{ color: #556677; font-size: 12px; }}
 
         .dispatch-dot {{ display: inline-block; width: 8px; height: 8px; background: #4caf50; border-radius: 50%; margin-right: 6px; vertical-align: middle; box-shadow: 0 0 4px #4caf50; }}
+        .dispatch-dot-yellow {{ display: inline-block; width: 8px; height: 8px; background: #ffc107; border-radius: 50%; margin-right: 6px; vertical-align: middle; box-shadow: 0 0 4px #ffc107; }}
         .alert-badge {{ display: inline-block; background: #ef5350; color: #fff; font-size: 10px; font-weight: 700; padding: 1px 5px; border-radius: 8px; margin-left: 4px; vertical-align: middle; }}
 
         .flag-tag {{ display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: 600; text-decoration: none; margin-right: 4px; }}
@@ -207,9 +203,11 @@ def generate_html(data: dict, tracked_actions: dict = None) -> str:
             <option value="on">Dispatch On</option>
             <option value="off">Dispatch Off</option>
         </select>
-        <select id="site-filter" onchange="renderTable()" style="margin-right:8px;">
-            <option value="all">All Sites</option>
-        </select>
+        <div class="site-search-wrap" style="margin-right:8px;position:relative;display:inline-block;">
+            <input type="text" id="site-search" placeholder="Search site..." autocomplete="off"
+                   style="width:120px;padding:6px 12px;border-radius:6px;border:1px solid #456a85;background:#334d63;color:#dce4ec;font-size:13px;">
+            <div id="site-dropdown" class="site-dropdown"></div>
+        </div>
         <select id="pod-filter" onchange="renderTable()">
             <option value="all">All Regions</option>
             <option value="Northeast">Northeast</option>
@@ -304,11 +302,10 @@ def generate_html(data: dict, tracked_actions: dict = None) -> str:
 
         function renderTable() {{
             const filter = document.getElementById('pod-filter').value;
-            const siteFilter = document.getElementById('site-filter').value;
             const dispatchFilter = document.getElementById('dispatch-filter').value;
             let rows = DATA;
-            if (siteFilter !== 'all') {{
-                rows = rows.filter(r => r.site === siteFilter);
+            if (selectedSite !== 'all') {{
+                rows = rows.filter(r => r.site === selectedSite);
             }} else if (filter !== 'all') {{
                 rows = rows.filter(r => r.pod === filter);
             }}
@@ -407,7 +404,7 @@ def generate_html(data: dict, tracked_actions: dict = None) -> str:
                         <td class="cet-cell">${{cetCell}}</td>
                         <td class="${{sbClass}}">${{r.small_batches || '<span class="no-data">0</span>'}}</td>
                         <td class="${{scanClass}}" title="${{scanTitle}}">${{r.scan_start || '<span class="no-data">—</span>'}}</td>
-                        <td class="${{dispatchClass}}" title="${{dispatchTitle}}">${{r.dispatch_active ? '<span class="dispatch-dot"></span>' : ''}}${{r.dispatch_start || '<span class="no-data">—</span>'}}</td>
+                        <td class="${{dispatchClass}}" title="${{dispatchTitle}}">${{r.dispatch_toggle ? '<span class="dispatch-dot"></span>' : r.has_active_runners ? '<span class="dispatch-dot-yellow"></span>' : ''}}${{r.dispatch_start || '<span class="no-data">—</span>'}}</td>
                         <td class="${{r.needs_replan >= 35 ? 'cell-red-dark' : r.needs_replan >= 15 ? 'cell-yellow-dark' : ''}}">${{r.needs_replan || '<span class="no-data">0</span>'}}</td>
                         <td class="${{r.return_bin >= 15 ? 'cell-red-dark' : r.return_bin >= 5 ? 'cell-yellow-dark' : ''}}">${{r.return_bin || '<span class="no-data">0</span>'}}</td>
                         <td class="${{r.lfr_over_45 > 0 ? 'cell-yellow-dark' : ''}}">${{r.lfr_over_45 || '<span class="no-data">0</span>'}}</td>
@@ -537,13 +534,32 @@ def generate_html(data: dict, tracked_actions: dict = None) -> str:
             hideModal();
         }}
 
-        // Populate site dropdown
-        const siteSelect = document.getElementById('site-filter');
-        DATA.map(r => r.site).sort().forEach(s => {{
-            const opt = document.createElement('option');
-            opt.value = s;
-            opt.textContent = s;
-            siteSelect.appendChild(opt);
+        // Site search
+        const allSites = DATA.map(r => r.site).sort();
+        let selectedSite = 'all';
+        const siteInput = document.getElementById('site-search');
+        const siteDropdownEl = document.getElementById('site-dropdown');
+
+        function showSiteDropdown(filter) {{
+            const q = (filter || '').toUpperCase();
+            const matches = q ? allSites.filter(s => s.includes(q)) : allSites;
+            siteDropdownEl.innerHTML = '<div class="site-dropdown-item" data-val="all">All Sites</div>' +
+                matches.map(s => `<div class="site-dropdown-item" data-val="${{s}}">${{s}}</div>`).join('');
+            siteDropdownEl.classList.add('open');
+        }}
+
+        siteInput.addEventListener('focus', () => showSiteDropdown(siteInput.value));
+        siteInput.addEventListener('input', () => showSiteDropdown(siteInput.value));
+        siteDropdownEl.addEventListener('click', (e) => {{
+            const item = e.target.closest('.site-dropdown-item');
+            if (!item) return;
+            selectedSite = item.dataset.val;
+            siteInput.value = selectedSite === 'all' ? '' : selectedSite;
+            siteDropdownEl.classList.remove('open');
+            renderTable();
+        }});
+        document.addEventListener('click', (e) => {{
+            if (!e.target.closest('.site-search-wrap')) siteDropdownEl.classList.remove('open');
         }});
 
         renderTable();
