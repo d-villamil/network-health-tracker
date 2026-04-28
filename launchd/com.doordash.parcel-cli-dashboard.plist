@@ -14,6 +14,12 @@
     <key>WorkingDirectory</key>
     <string>/Users/david.villamil/parcel-cli</string>
 
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/usr/local/bin:/usr/bin:/bin:/opt/homebrew/bin</string>
+    </dict>
+
     <!-- Keep it running — restart if it crashes -->
     <key>KeepAlive</key>
     <true/>
