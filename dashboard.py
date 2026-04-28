@@ -481,7 +481,8 @@ def scorecard_page():
     exc_data = _get_data()
     return_bin_data = _get_return_bin_data()
     lfr_data = _get_lfr_data()
-    timeline = timeline_tracker.get_timeline()
+    small_batch_data = _get_small_batch_data()
+    timeline = _gather_and_update_timeline(exc_data, lfr_data, return_bin_data, small_batch_data)
     info = _cache_info()
 
     # Build lookup dicts for real-time counts
@@ -513,7 +514,8 @@ def api_scorecard_refresh():
     exc_data = _get_data()
     return_bin_data = _get_return_bin_data()
     lfr_data = _get_lfr_data()
-    timeline = timeline_tracker.get_timeline()
+    small_batch_data = _get_small_batch_data()
+    timeline = _gather_and_update_timeline(exc_data, lfr_data, return_bin_data, small_batch_data)
     info = _cache_info()
 
     exc_by_site = {r["site"]: r for r in exc_data}

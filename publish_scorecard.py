@@ -277,6 +277,7 @@ def generate_html(data: dict, tracked_actions: dict = None) -> str:
                     <option value="Return Bin">Return Bin</option>
                     <option value="PLIB">PLIB</option>
                     <option value="Dispatch">Dispatch</option>
+                    <option value="Operational Issue">Operational Issue</option>
                 </select>
                 <label>Quantity</label>
                 <input type="text" id="track-quantity" readonly>
