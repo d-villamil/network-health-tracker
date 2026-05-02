@@ -17,7 +17,7 @@
         .section-count { color: #99aabb; }
 
         #scorecard-table { background: #334d63; box-shadow: 0 1px 3px rgba(0,0,0,0.3); }
-        #scorecard-table thead { background: #263849; }
+        #scorecard-table thead { background: #263849; position: sticky; top: 0; z-index: 10; }
         #scorecard-table th { color: #b0c0d0; }
         #scorecard-table th.sortable:hover { background: #456a85; }
         #scorecard-table td { border-bottom-color: #456a85; color: #dce4ec; }
@@ -135,6 +135,17 @@
             letter-spacing: 0;
         }
 
+        .region-col-header th {
+            background: #2a3d50 !important;
+            color: #99aabb;
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            padding: 6px 12px;
+            border-bottom: 1px solid #456a85 !important;
+            font-weight: 500;
+        }
+
         /* Expandable rows */
         #scorecard-table tr.expandable { cursor: pointer; }
         .alert-badge {
@@ -173,7 +184,7 @@
 <body>
     <header>
         <div class="header-left">
-            <h1><a href="https://docs.google.com/spreadsheets/d/1cQH7gwBvAmZO8WiYNPbrCSnO8zxB0DUDhzaeMM5o-ZU/edit?gid=11136630#gid=11136630" target="_blank" style="color:inherit;text-decoration:none;">Network Health Dashboard</a></h1>
+            <h1><a href="https://docs.google.com/spreadsheets/d/1cQH7gwBvAmZO8WiYNPbrCSnO8zxB0DUDhzaeMM5o-ZU/edit?gid=11136630#gid=11136630" target="_blank" style="color:inherit;text-decoration:none;">Network Health Dashboard <span style="font-size:11px;color:#4fc3f7;margin-left:8px;vertical-align:middle;">📋 Open Tracker</span></a></h1>
             <span id="last-updated" class="meta">Last updated: {{ last_updated }}</span>
             <span id="scan-status" class="meta"></span>
         </div>
@@ -203,6 +214,7 @@
         <a href="/" class="tab">Exceptions</a>
         <a href="/scorecard" class="tab active">Scorecard</a>
         <a href="/shipments" class="tab">Shipments</a>
+        <a href="/hubs" class="tab">Hubs</a>
     </nav>
 
     <main>
@@ -350,6 +362,15 @@
                 headerTr.className = 'region-header';
                 headerTr.innerHTML = `<td colspan="11">${region} <span class="region-count">(${regionRows.length} sites)</span></td>`;
                 tbody.appendChild(headerTr);
+
+                // Column headers for this region
+                const colTr = document.createElement('tr');
+                colTr.className = 'region-col-header';
+                colTr.innerHTML = `
+                    <th>Site</th><th>Region</th><th>CET Met</th><th>Small Batches</th>
+                    <th>Sort Scan Start</th><th>Dispatch Start</th><th>Needs Replan</th>
+                    <th>Return Bin</th><th>LFR > 45m</th><th>PLIB</th><th>Flags</th>`;
+                tbody.appendChild(colTr);
 
             regionRows.forEach(r => {
                 const tr = document.createElement('tr');

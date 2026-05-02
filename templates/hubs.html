@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hubs — Network Health Dashboard</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #2a3d50; color: #e0e6ed; font-size: 14px; }
+
+        header { display: flex; justify-content: space-between; align-items: center; padding: 16px 24px; background: #334d63; border-bottom: 1px solid #456a85; }
+        h1 { font-size: 20px; font-weight: 600; }
+        h1 a { color: inherit; text-decoration: none; }
+        .meta { font-size: 12px; color: #99aabb; margin-left: 12px; }
+
+        .tabs { display: flex; gap: 0; padding: 0 24px; background: #334d63; border-bottom: 1px solid #456a85; }
+        .tab { padding: 10px 18px; color: #99aabb; text-decoration: none; font-size: 14px; border-bottom: 2px solid transparent; }
+        .tab:hover { color: #e0e6ed; }
+        .tab.active { color: #4fc3f7; border-bottom-color: #4fc3f7; }
+
+        .direction-toggle { display: flex; gap: 4px; padding: 12px 24px 0; }
+        .dir-btn { padding: 8px 18px; background: #334d63; color: #99aabb; border: 1px solid #456a85; border-radius: 6px 6px 0 0; cursor: pointer; font-size: 14px; font-weight: 500; }
+        .dir-btn:hover { color: #e0e6ed; }
+        .dir-btn.active { background: #263849; color: #4fc3f7; border-bottom-color: #263849; }
+
+        main { padding: 16px 24px; }
+
+        .hub-jump { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; padding: 12px; background: #334d63; border-radius: 8px; }
+        .hub-jump a { padding: 6px 12px; background: #263849; color: #4fc3f7; text-decoration: none; border-radius: 4px; font-size: 13px; font-weight: 500; }
+        .hub-jump a:hover { background: #456a85; color: #fff; }
+        .hub-jump .count { color: #99aabb; font-size: 11px; margin-left: 4px; }
+
+        .hub-section { margin-bottom: 28px; background: #334d63; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.3); overflow: hidden; }
+        .hub-header { padding: 12px 16px; background: #263849; border-bottom: 2px solid #456a85; display: flex; justify-content: space-between; align-items: center; }
+        .hub-name { font-size: 16px; font-weight: 700; color: #4fc3f7; letter-spacing: 0.5px; }
+        .hub-stats { font-size: 12px; color: #99aabb; }
+        .hub-stats .stat-pill { display: inline-block; padding: 2px 8px; margin-left: 6px; border-radius: 10px; background: #2a3d50; color: #dce4ec; font-weight: 500; }
+        .hub-stats .stat-late { background: #5a2626; color: #ef5350; }
+        .hub-stats .stat-empty { background: #5a5a26; color: #ffca28; }
+        .hub-stats .stat-active { background: #1a4068; color: #4fc3f7; }
+        .hub-stats .stat-done { background: #265a38; color: #81c784; }
+
+        table { width: 100%; border-collapse: collapse; }
+        thead { background: #2a3d50; }
+        th { padding: 8px 12px; text-align: left; font-weight: 500; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: #b0c0d0; white-space: nowrap; }
+        td { padding: 8px 12px; border-bottom: 1px solid #456a85; font-variant-numeric: tabular-nums; color: #dce4ec; font-size: 13px; }
+        tbody tr:nth-child(even) { background: #385268; }
+        tbody tr:nth-child(odd) { background: #334d63; }
+        tbody tr:hover { background: #426280; }
+
+        tr.row-late { border-left: 4px solid #ef5350; }
+        tr.row-empty { border-left: 4px solid #ffc107; }
+        tr.row-departed td { color: #99aabb; }
+        tr.row-not-started { border-left: 4px solid #ffc107; }
+        tr.row-done td { color: #81c784; }
+
+        .late-badge { display: inline-block; background: #5a2626; color: #ef5350; font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 8px; margin-left: 6px; }
+        .empty-badge { display: inline-block; background: #5a5a26; color: #ffca28; font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 8px; margin-left: 6px; }
+        .status-departed { color: #81c784; font-weight: 500; }
+        .status-scheduled { color: #ffca28; font-weight: 500; }
+        .status-inducting { color: #4fc3f7; font-weight: 500; }
+        .status-not-started { color: #ffca28; font-weight: 500; }
+        .status-done { color: #81c784; font-weight: 500; }
+        .no-data { color: #556677; font-style: italic; padding: 16px; text-align: center; }
+        .dest-cell { font-weight: 700; color: #4fc3f7; }
+        .ship-link { color: #99aabb; font-size: 11px; text-decoration: none; }
+        .ship-link:hover { color: #4fc3f7; text-decoration: underline; }
+        .origin-cell { font-size: 12px; color: #dce4ec; max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+        .progress-bar { display: inline-block; width: 100px; height: 12px; background: #2a3d50; border-radius: 6px; overflow: hidden; vertical-align: middle; margin-right: 8px; }
+        .progress-fill { height: 100%; background: #4fc3f7; transition: width 0.3s; }
+        .progress-fill.done { background: #81c784; }
+        .progress-fill.low { background: #ffca28; }
+        .progress-text { font-size: 12px; color: #dce4ec; font-weight: 500; vertical-align: middle; }
+
+        select, button { padding: 6px 12px; border-radius: 6px; border: 1px solid #456a85; background: #334d63; color: #dce4ec; font-size: 13px; }
+        #refresh-btn { background: #1976d2; color: #fff; border: none; cursor: pointer; }
+        #refresh-btn:hover { background: #1565c0; }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="header-left">
+            <h1><a href="/">Network Health Dashboard</a></h1>
+            <span id="last-updated" class="meta">Last updated: {{ last_updated }}</span>
+        </div>
+        <div class="header-right">
+            <button id="refresh-btn" onclick="refreshData()">Refresh Now</button>
+        </div>
+    </header>
+
+    <nav class="tabs">
+        <a href="/" class="tab">Exceptions</a>
+        <a href="/scorecard" class="tab">Scorecard</a>
+        <a href="/shipments" class="tab">Shipments</a>
+        <a href="/hubs" class="tab active">Hubs</a>
+    </nav>
+
+    <div class="direction-toggle">
+        <button class="dir-btn active" data-direction="outbound" onclick="setDirection('outbound')">Outbound</button>
+        <button class="dir-btn" data-direction="inbound" onclick="setDirection('inbound')">Inbound</button>
+    </div>
+
+    <main>
+        <div class="hub-jump" id="hub-jump"></div>
+        <div id="hubs-container"></div>
+    </main>
+
+    <script>
+        let HUBS_DATA = {{ hubs | tojson }};
+        let HUB_CODES = {{ hub_codes | tojson }};
+        let CURRENT_DIRECTION = "outbound";
+
+        function escapeHtml(s) {
+            return String(s || "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"})[c]);
+        }
+
+        function setDirection(dir) {
+            CURRENT_DIRECTION = dir;
+            document.querySelectorAll(".dir-btn").forEach(b => b.classList.toggle("active", b.dataset.direction === dir));
+            renderJump();
+            renderHubs();
+        }
+
+        function renderJump() {
+            const el = document.getElementById("hub-jump");
+            el.innerHTML = HUB_CODES.map(h => {
+                const rows = (HUBS_DATA[h] || {})[CURRENT_DIRECTION] || [];
+                return `<a href="#hub-${h}">${h}<span class="count">(${rows.length})</span></a>`;
+            }).join("");
+        }
+
+        function renderOutboundRow(r) {
+            const cls = [];
+            if (r.status_raw === "CONTAINER_STATUS_DEPARTED") cls.push("row-departed");
+            if (r.is_late) cls.push("row-late");
+            else if (r.is_empty) cls.push("row-empty");
+            const statusClass = r.status_raw === "CONTAINER_STATUS_DEPARTED" ? "status-departed" : "status-scheduled";
+            const lateBadge = r.is_late ? '<span class="late-badge">LATE</span>' : '';
+            const emptyBadge = r.is_empty ? '<span class="empty-badge">EMPTY</span>' : '';
+            const shipLink = r.shipment_id
+                ? `<a class="ship-link" href="https://parcels.doordash.com/network/shipments/${r.shipment_id}" target="_blank">${r.shipment_id}</a>`
+                : '';
+            return `<tr class="${cls.join(' ')}">
+                <td class="dest-cell">${escapeHtml(r.destination)}${lateBadge}${emptyBadge}</td>
+                <td class="${statusClass}">${escapeHtml(r.status)}</td>
+                <td>${escapeHtml(r.dock)}</td>
+                <td>${escapeHtml(r.scheduled_departure)}</td>
+                <td>${escapeHtml(r.actual_departure)}</td>
+                <td>${r.stowed}</td>
+                <td>${r.eligible}</td>
+                <td>${escapeHtml(r.equipment)}</td>
+                <td>${shipLink}</td>
+            </tr>`;
+        }
+
+        function renderInboundRow(r) {
+            const cls = [];
+            if (r.status_raw === "INBOUND_TRUCK_SORTATION_STATUS_NOT_STARTED") cls.push("row-not-started");
+            if (r.status_raw === "INBOUND_TRUCK_SORTATION_STATUS_DONE_SCANNING") cls.push("row-done");
+            const statusMap = {
+                "INBOUND_TRUCK_SORTATION_STATUS_INDUCTING": "status-inducting",
+                "INBOUND_TRUCK_SORTATION_STATUS_NOT_STARTED": "status-not-started",
+                "INBOUND_TRUCK_SORTATION_STATUS_DONE_SCANNING": "status-done",
+            };
+            const statusClass = statusMap[r.status_raw] || "";
+            const fillClass = r.progress >= 100 ? "done" : (r.progress < 25 ? "low" : "");
+            return `<tr class="${cls.join(' ')}">
+                <td class="dest-cell">#${r.set_number}</td>
+                <td class="origin-cell" title="${escapeHtml(r.origins)}">${escapeHtml(r.origins) || '—'}</td>
+                <td class="${statusClass}">${escapeHtml(r.status)}</td>
+                <td>${r.expected}</td>
+                <td>${r.inducted}</td>
+                <td>
+                    <span class="progress-bar"><span class="progress-fill ${fillClass}" style="width:${Math.min(r.progress, 100)}%"></span></span>
+                    <span class="progress-text">${r.progress}%</span>
+                </td>
+                <td>${escapeHtml(r.zone_code) || '—'}</td>
+                <td>${escapeHtml(r.start_time) || '—'}</td>
+            </tr>`;
+        }
+
+        function renderHubs() {
+            const container = document.getElementById("hubs-container");
+            container.innerHTML = HUB_CODES.map(hub => {
+                const sides = HUBS_DATA[hub] || {};
+                const rows = sides[CURRENT_DIRECTION] || [];
+
+                let stats, body;
+                if (CURRENT_DIRECTION === "outbound") {
+                    const lateCount = rows.filter(r => r.is_late).length;
+                    const emptyCount = rows.filter(r => r.is_empty).length;
+                    const departedCount = rows.filter(r => r.status_raw === "CONTAINER_STATUS_DEPARTED").length;
+                    stats = `<span class="stat-pill">${rows.length} trucks</span>`;
+                    stats += `<span class="stat-pill">${departedCount} departed</span>`;
+                    if (lateCount > 0) stats += `<span class="stat-pill stat-late">${lateCount} late</span>`;
+                    if (emptyCount > 0) stats += `<span class="stat-pill stat-empty">${emptyCount} empty</span>`;
+                    if (rows.length === 0) {
+                        body = `<div class="no-data">No outbound trucks for ${hub}</div>`;
+                    } else {
+                        body = `<table><thead><tr>
+                            <th>Destination</th><th>Status</th><th>Dock</th><th>Scheduled</th><th>Actual</th>
+                            <th>Loaded</th><th>Eligible to Load</th><th>Equipment</th><th>Shipment</th>
+                        </tr></thead><tbody>` + rows.map(renderOutboundRow).join("") + `</tbody></table>`;
+                    }
+                } else {
+                    const inducting = rows.filter(r => r.status_raw === "INBOUND_TRUCK_SORTATION_STATUS_INDUCTING").length;
+                    const notStarted = rows.filter(r => r.status_raw === "INBOUND_TRUCK_SORTATION_STATUS_NOT_STARTED").length;
+                    const done = rows.filter(r => r.status_raw === "INBOUND_TRUCK_SORTATION_STATUS_DONE_SCANNING").length;
+                    stats = `<span class="stat-pill">${rows.length} sets</span>`;
+                    if (inducting > 0) stats += `<span class="stat-pill stat-active">${inducting} inducting</span>`;
+                    if (notStarted > 0) stats += `<span class="stat-pill stat-empty">${notStarted} not started</span>`;
+                    if (done > 0) stats += `<span class="stat-pill stat-done">${done} done</span>`;
+                    if (rows.length === 0) {
+                        body = `<div class="no-data">No inbound sortation sets for ${hub}</div>`;
+                    } else {
+                        body = `<table><thead><tr>
+                            <th>Set #</th><th>Origins</th><th>Status</th><th>Expected</th><th>Inducted</th>
+                            <th>Progress</th><th>Zone</th><th>Start</th>
+                        </tr></thead><tbody>` + rows.map(renderInboundRow).join("") + `</tbody></table>`;
+                    }
+                }
+
+                return `<section class="hub-section" id="hub-${hub}">
+                    <div class="hub-header">
+                        <div class="hub-name">${hub}</div>
+                        <div class="hub-stats">${stats}</div>
+                    </div>
+                    ${body}
+                </section>`;
+            }).join("");
+        }
+
+        async function refreshData() {
+            const btn = document.getElementById("refresh-btn");
+            btn.textContent = "Refreshing...";
+            btn.disabled = true;
+            try {
+                const resp = await fetch("/api/hubs/refresh", { method: "POST" });
+                const data = await resp.json();
+                HUBS_DATA = data.hubs;
+                HUB_CODES = data.hub_codes;
+                document.getElementById("last-updated").textContent = "Last updated: " + data.last_updated;
+                renderJump();
+                renderHubs();
+            } catch (e) {
+                console.error(e);
+            } finally {
+                btn.textContent = "Refresh Now";
+                btn.disabled = false;
+            }
+        }
+
+        renderJump();
+        renderHubs();
+
+        // Auto-refresh every 3 minutes
+        setInterval(refreshData, 180000);
+    </script>
+</body>
+</html>

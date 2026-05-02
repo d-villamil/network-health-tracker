@@ -106,6 +106,7 @@ def generate_html(data: dict, tracked_actions: dict = None) -> str:
         header {{ display: flex; justify-content: space-between; align-items: center; padding: 16px 24px; background: #334d63; border-bottom: 1px solid #456a85; }}
         h1 {{ font-size: 20px; font-weight: 600; }}
         h1 a {{ color: inherit; text-decoration: none; }}
+        h1 a span.link-hint {{ font-size: 11px; color: #4fc3f7; margin-left: 8px; vertical-align: middle; }}
         .meta {{ font-size: 12px; color: #99aabb; margin-left: 12px; }}
         .published {{ font-size: 11px; color: #99aabb; padding: 8px 24px; background: #263849; text-align: center; }}
 
@@ -116,7 +117,7 @@ def generate_html(data: dict, tracked_actions: dict = None) -> str:
         .section-count {{ font-size: 13px; font-weight: 400; color: #99aabb; }}
 
         table {{ width: 100%; border-collapse: collapse; background: #334d63; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.3); }}
-        thead {{ background: #263849; }}
+        thead {{ background: #263849; position: sticky; top: 0; z-index: 10; }}
         th {{ padding: 10px 12px; text-align: left; font-weight: 500; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; white-space: nowrap; color: #b0c0d0; cursor: pointer; user-select: none; }}
         th:hover {{ background: #456a85; }}
         th.sorted-asc::after {{ content: " \\25B2"; font-size: 10px; }}
@@ -181,6 +182,17 @@ def generate_html(data: dict, tracked_actions: dict = None) -> str:
         .tracked-info {{ font-size: 11px; color: #4caf50; }}
         .tracked-info a {{ color: #4caf50; text-decoration: none; }}
         .tracked-info a:hover {{ text-decoration: underline; }}
+        .region-col-header th {{
+            background: #2a3d50 !important;
+            color: #99aabb;
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            padding: 6px 12px;
+            border-bottom: 1px solid #456a85 !important;
+            font-weight: 500;
+        }}
+
         tr.expandable {{ cursor: pointer; }}
         .timeline-row-dark {{ background: #263849 !important; }}
         .timeline-row-dark td {{ border-bottom-color: #2a3a4e !important; }}
@@ -204,12 +216,17 @@ def generate_html(data: dict, tracked_actions: dict = None) -> str:
         .btn-submit {{ padding: 6px 12px; border-radius: 6px; border: none; background: #00b894; color: #fff; font-weight: 600; cursor: pointer; font-size: 13px; }}
         .btn-submit:hover {{ background: #00a381; }}
         .btn-submit:disabled {{ background: #556677; cursor: wait; }}
+
+        .tabs {{ display: flex; gap: 0; padding: 0 24px; background: #334d63; border-bottom: 1px solid #456a85; }}
+        .tab {{ padding: 10px 18px; color: #99aabb; text-decoration: none; font-size: 14px; border-bottom: 2px solid transparent; }}
+        .tab:hover {{ color: #e0e6ed; }}
+        .tab.active {{ color: #4fc3f7; border-bottom-color: #4fc3f7; }}
     </style>
 </head>
 <body>
     <header>
         <div>
-            <h1><a href="https://docs.google.com/spreadsheets/d/1cQH7gwBvAmZO8WiYNPbrCSnO8zxB0DUDhzaeMM5o-ZU/edit?gid=11136630#gid=11136630" target="_blank">Network Health Scorecard</a></h1>
+            <h1><a href="https://docs.google.com/spreadsheets/d/1cQH7gwBvAmZO8WiYNPbrCSnO8zxB0DUDhzaeMM5o-ZU/edit?gid=11136630#gid=11136630" target="_blank">Network Health Scorecard <span class="link-hint">📋 Open Tracker</span></a></h1>
             <span class="meta">Last updated: {last_updated}</span>
         </div>
         <select id="dispatch-filter" onchange="renderTable()" style="margin-right:8px;">
@@ -230,6 +247,10 @@ def generate_html(data: dict, tracked_actions: dict = None) -> str:
             <option value="West">West</option>
         </select>
     </header>
+    <nav class="tabs">
+        <a href="index.html" class="tab active">Scorecard</a>
+        <a href="hubs.html" class="tab">Hubs</a>
+    </nav>
     <div class="published">Published {now.strftime("%-I:%M %p ET, %B %d")} — auto-refreshes every 15 min during ops hours</div>
 
     <main>
@@ -365,6 +386,14 @@ def generate_html(data: dict, tracked_actions: dict = None) -> str:
                 headerTr.className = 'region-header';
                 headerTr.innerHTML = `<td colspan="11">${{region}} <span class="region-count">(${{regionRows.length}} sites)</span></td>`;
                 tbody.appendChild(headerTr);
+
+                const colTr = document.createElement('tr');
+                colTr.className = 'region-col-header';
+                colTr.innerHTML = `
+                    <th>Site</th><th>Region</th><th>CET Met</th><th>Small Batches</th>
+                    <th>Sort Scan Start</th><th>Dispatch Start</th><th>Needs Replan</th>
+                    <th>Return Bin</th><th>LFR > 45m</th><th>PLIB</th><th>Flags</th>`;
+                tbody.appendChild(colTr);
 
                 regionRows.forEach(r => {{
                     const tr = document.createElement('tr');
@@ -583,6 +612,262 @@ def generate_html(data: dict, tracked_actions: dict = None) -> str:
 </html>"""
 
 
+def fetch_hubs_data(force=False) -> dict | None:
+    """Fetch hubs/outbound-kiosk data from the running localhost dashboard."""
+    now_et = datetime.now(ET)
+    if now_et.hour >= 14 and not force:
+        return None
+    try:
+        resp = requests.post(f"{DASHBOARD_URL}/api/hubs/refresh", timeout=600)
+        resp.raise_for_status()
+        return resp.json()
+    except Exception as e:
+        log.error(f"Failed to fetch hubs from dashboard: {e}")
+        return None
+
+
+def generate_hubs_html(data: dict) -> str:
+    """Generate static hubs page mirroring the localhost /hubs view."""
+    hubs = data.get("hubs", {})
+    hub_codes = data.get("hub_codes", [])
+    last_updated = data.get("last_updated", "Unknown")
+    now = datetime.now(ET)
+
+    hubs_json = json.dumps(hubs)
+    codes_json = json.dumps(hub_codes)
+
+    return f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚚</text></svg>">
+    <title>📦 Network Hubs</title>
+    <style>
+        * {{ margin: 0; padding: 0; box-sizing: border-box; }}
+        body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #2a3d50; color: #e0e6ed; font-size: 14px; }}
+
+        header {{ display: flex; justify-content: space-between; align-items: center; padding: 16px 24px; background: #334d63; border-bottom: 1px solid #456a85; }}
+        h1 {{ font-size: 20px; font-weight: 600; }}
+        h1 a {{ color: inherit; text-decoration: none; }}
+        .meta {{ font-size: 12px; color: #99aabb; margin-left: 12px; }}
+        .published {{ font-size: 11px; color: #99aabb; padding: 8px 24px; background: #263849; text-align: center; }}
+
+        .tabs {{ display: flex; gap: 0; padding: 0 24px; background: #334d63; border-bottom: 1px solid #456a85; }}
+        .tab {{ padding: 10px 18px; color: #99aabb; text-decoration: none; font-size: 14px; border-bottom: 2px solid transparent; }}
+        .tab:hover {{ color: #e0e6ed; }}
+        .tab.active {{ color: #4fc3f7; border-bottom-color: #4fc3f7; }}
+
+        .direction-toggle {{ display: flex; gap: 4px; padding: 12px 24px 0; }}
+        .dir-btn {{ padding: 8px 18px; background: #334d63; color: #99aabb; border: 1px solid #456a85; border-radius: 6px 6px 0 0; cursor: pointer; font-size: 14px; font-weight: 500; }}
+        .dir-btn:hover {{ color: #e0e6ed; }}
+        .dir-btn.active {{ background: #263849; color: #4fc3f7; border-bottom-color: #263849; }}
+
+        main {{ padding: 16px 24px; }}
+
+        .hub-jump {{ display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; padding: 12px; background: #334d63; border-radius: 8px; }}
+        .hub-jump a {{ padding: 6px 12px; background: #263849; color: #4fc3f7; text-decoration: none; border-radius: 4px; font-size: 13px; font-weight: 500; }}
+        .hub-jump a:hover {{ background: #456a85; color: #fff; }}
+        .hub-jump .count {{ color: #99aabb; font-size: 11px; margin-left: 4px; }}
+
+        .hub-section {{ margin-bottom: 28px; background: #334d63; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.3); overflow: hidden; }}
+        .hub-header {{ padding: 12px 16px; background: #263849; border-bottom: 2px solid #456a85; display: flex; justify-content: space-between; align-items: center; }}
+        .hub-name {{ font-size: 16px; font-weight: 700; color: #4fc3f7; letter-spacing: 0.5px; }}
+        .hub-stats {{ font-size: 12px; color: #99aabb; }}
+        .hub-stats .stat-pill {{ display: inline-block; padding: 2px 8px; margin-left: 6px; border-radius: 10px; background: #2a3d50; color: #dce4ec; font-weight: 500; }}
+        .hub-stats .stat-late {{ background: #5a2626; color: #ef5350; }}
+        .hub-stats .stat-empty {{ background: #5a5a26; color: #ffca28; }}
+        .hub-stats .stat-active {{ background: #1a4068; color: #4fc3f7; }}
+        .hub-stats .stat-done {{ background: #265a38; color: #81c784; }}
+
+        table {{ width: 100%; border-collapse: collapse; }}
+        thead {{ background: #2a3d50; }}
+        th {{ padding: 8px 12px; text-align: left; font-weight: 500; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: #b0c0d0; white-space: nowrap; }}
+        td {{ padding: 8px 12px; border-bottom: 1px solid #456a85; font-variant-numeric: tabular-nums; color: #dce4ec; font-size: 13px; }}
+        tbody tr:nth-child(even) {{ background: #385268; }}
+        tbody tr:nth-child(odd) {{ background: #334d63; }}
+        tbody tr:hover {{ background: #426280; }}
+
+        tr.row-late {{ border-left: 4px solid #ef5350; }}
+        tr.row-empty {{ border-left: 4px solid #ffc107; }}
+        tr.row-departed td {{ color: #99aabb; }}
+        tr.row-not-started {{ border-left: 4px solid #ffc107; }}
+        tr.row-done td {{ color: #81c784; }}
+
+        .late-badge {{ display: inline-block; background: #5a2626; color: #ef5350; font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 8px; margin-left: 6px; }}
+        .empty-badge {{ display: inline-block; background: #5a5a26; color: #ffca28; font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 8px; margin-left: 6px; }}
+        .status-departed {{ color: #81c784; font-weight: 500; }}
+        .status-scheduled {{ color: #ffca28; font-weight: 500; }}
+        .status-inducting {{ color: #4fc3f7; font-weight: 500; }}
+        .status-not-started {{ color: #ffca28; font-weight: 500; }}
+        .status-done {{ color: #81c784; font-weight: 500; }}
+        .no-data {{ color: #556677; font-style: italic; padding: 16px; text-align: center; }}
+        .dest-cell {{ font-weight: 700; color: #4fc3f7; }}
+        .ship-link {{ color: #99aabb; font-size: 11px; text-decoration: none; }}
+        .ship-link:hover {{ color: #4fc3f7; text-decoration: underline; }}
+        .origin-cell {{ font-size: 12px; color: #dce4ec; max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }}
+
+        .progress-bar {{ display: inline-block; width: 100px; height: 12px; background: #2a3d50; border-radius: 6px; overflow: hidden; vertical-align: middle; margin-right: 8px; }}
+        .progress-fill {{ height: 100%; background: #4fc3f7; transition: width 0.3s; }}
+        .progress-fill.done {{ background: #81c784; }}
+        .progress-fill.low {{ background: #ffca28; }}
+        .progress-text {{ font-size: 12px; color: #dce4ec; font-weight: 500; vertical-align: middle; }}
+    </style>
+</head>
+<body>
+    <header>
+        <div>
+            <h1><a href="index.html">Network Hubs</a></h1>
+            <span class="meta">Last updated: {last_updated}</span>
+        </div>
+    </header>
+    <nav class="tabs">
+        <a href="index.html" class="tab">Scorecard</a>
+        <a href="hubs.html" class="tab active">Hubs</a>
+    </nav>
+    <div class="direction-toggle">
+        <button class="dir-btn active" data-direction="outbound" onclick="setDirection('outbound')">Outbound</button>
+        <button class="dir-btn" data-direction="inbound" onclick="setDirection('inbound')">Inbound</button>
+    </div>
+    <div class="published">Published {now.strftime("%-I:%M %p ET, %B %d")} — auto-refreshes every 15 min during ops hours</div>
+
+    <main>
+        <div class="hub-jump" id="hub-jump"></div>
+        <div id="hubs-container"></div>
+    </main>
+
+    <script>
+        const HUBS_DATA = {hubs_json};
+        const HUB_CODES = {codes_json};
+        let CURRENT_DIRECTION = "outbound";
+
+        function escapeHtml(s) {{
+            return String(s || "").replace(/[&<>"']/g, c => ({{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}})[c]);
+        }}
+
+        function setDirection(dir) {{
+            CURRENT_DIRECTION = dir;
+            document.querySelectorAll(".dir-btn").forEach(b => b.classList.toggle("active", b.dataset.direction === dir));
+            renderJump();
+            renderHubs();
+        }}
+
+        function renderJump() {{
+            const el = document.getElementById("hub-jump");
+            el.innerHTML = HUB_CODES.map(h => {{
+                const rows = (HUBS_DATA[h] || {{}})[CURRENT_DIRECTION] || [];
+                return `<a href="#hub-${{h}}">${{h}}<span class="count">(${{rows.length}})</span></a>`;
+            }}).join("");
+        }}
+
+        function renderOutboundRow(r) {{
+            const cls = [];
+            if (r.status_raw === "CONTAINER_STATUS_DEPARTED") cls.push("row-departed");
+            if (r.is_late) cls.push("row-late");
+            else if (r.is_empty) cls.push("row-empty");
+            const statusClass = r.status_raw === "CONTAINER_STATUS_DEPARTED" ? "status-departed" : "status-scheduled";
+            const lateBadge = r.is_late ? '<span class="late-badge">LATE</span>' : '';
+            const emptyBadge = r.is_empty ? '<span class="empty-badge">EMPTY</span>' : '';
+            const shipLink = r.shipment_id
+                ? `<a class="ship-link" href="https://parcels.doordash.com/network/shipments/${{r.shipment_id}}" target="_blank">${{r.shipment_id}}</a>`
+                : '';
+            return `<tr class="${{cls.join(' ')}}">
+                <td class="dest-cell">${{escapeHtml(r.destination)}}${{lateBadge}}${{emptyBadge}}</td>
+                <td class="${{statusClass}}">${{escapeHtml(r.status)}}</td>
+                <td>${{escapeHtml(r.dock)}}</td>
+                <td>${{escapeHtml(r.scheduled_departure)}}</td>
+                <td>${{escapeHtml(r.actual_departure)}}</td>
+                <td>${{r.stowed}}</td>
+                <td>${{r.eligible}}</td>
+                <td>${{escapeHtml(r.equipment)}}</td>
+                <td>${{shipLink}}</td>
+            </tr>`;
+        }}
+
+        function renderInboundRow(r) {{
+            const cls = [];
+            if (r.status_raw === "INBOUND_TRUCK_SORTATION_STATUS_NOT_STARTED") cls.push("row-not-started");
+            if (r.status_raw === "INBOUND_TRUCK_SORTATION_STATUS_DONE_SCANNING") cls.push("row-done");
+            const statusMap = {{
+                "INBOUND_TRUCK_SORTATION_STATUS_INDUCTING": "status-inducting",
+                "INBOUND_TRUCK_SORTATION_STATUS_NOT_STARTED": "status-not-started",
+                "INBOUND_TRUCK_SORTATION_STATUS_DONE_SCANNING": "status-done",
+            }};
+            const statusClass = statusMap[r.status_raw] || "";
+            const fillClass = r.progress >= 100 ? "done" : (r.progress < 25 ? "low" : "");
+            return `<tr class="${{cls.join(' ')}}">
+                <td class="dest-cell">#${{r.set_number}}</td>
+                <td class="origin-cell" title="${{escapeHtml(r.origins)}}">${{escapeHtml(r.origins) || '—'}}</td>
+                <td class="${{statusClass}}">${{escapeHtml(r.status)}}</td>
+                <td>${{r.expected}}</td>
+                <td>${{r.inducted}}</td>
+                <td>
+                    <span class="progress-bar"><span class="progress-fill ${{fillClass}}" style="width:${{Math.min(r.progress, 100)}}%"></span></span>
+                    <span class="progress-text">${{r.progress}}%</span>
+                </td>
+                <td>${{escapeHtml(r.zone_code) || '—'}}</td>
+                <td>${{escapeHtml(r.start_time) || '—'}}</td>
+            </tr>`;
+        }}
+
+        function renderHubs() {{
+            const container = document.getElementById("hubs-container");
+            container.innerHTML = HUB_CODES.map(hub => {{
+                const sides = HUBS_DATA[hub] || {{}};
+                const rows = sides[CURRENT_DIRECTION] || [];
+
+                let stats, body;
+                if (CURRENT_DIRECTION === "outbound") {{
+                    const lateCount = rows.filter(r => r.is_late).length;
+                    const emptyCount = rows.filter(r => r.is_empty).length;
+                    const departedCount = rows.filter(r => r.status_raw === "CONTAINER_STATUS_DEPARTED").length;
+                    stats = `<span class="stat-pill">${{rows.length}} trucks</span>`;
+                    stats += `<span class="stat-pill">${{departedCount}} departed</span>`;
+                    if (lateCount > 0) stats += `<span class="stat-pill stat-late">${{lateCount}} late</span>`;
+                    if (emptyCount > 0) stats += `<span class="stat-pill stat-empty">${{emptyCount}} empty</span>`;
+                    if (rows.length === 0) {{
+                        body = `<div class="no-data">No outbound trucks for ${{hub}}</div>`;
+                    }} else {{
+                        body = `<table><thead><tr>
+                            <th>Destination</th><th>Status</th><th>Dock</th><th>Scheduled</th><th>Actual</th>
+                            <th>Loaded</th><th>Eligible to Load</th><th>Equipment</th><th>Shipment</th>
+                        </tr></thead><tbody>` + rows.map(renderOutboundRow).join("") + `</tbody></table>`;
+                    }}
+                }} else {{
+                    const inducting = rows.filter(r => r.status_raw === "INBOUND_TRUCK_SORTATION_STATUS_INDUCTING").length;
+                    const notStarted = rows.filter(r => r.status_raw === "INBOUND_TRUCK_SORTATION_STATUS_NOT_STARTED").length;
+                    const done = rows.filter(r => r.status_raw === "INBOUND_TRUCK_SORTATION_STATUS_DONE_SCANNING").length;
+                    stats = `<span class="stat-pill">${{rows.length}} sets</span>`;
+                    if (inducting > 0) stats += `<span class="stat-pill stat-active">${{inducting}} inducting</span>`;
+                    if (notStarted > 0) stats += `<span class="stat-pill stat-empty">${{notStarted}} not started</span>`;
+                    if (done > 0) stats += `<span class="stat-pill stat-done">${{done}} done</span>`;
+                    if (rows.length === 0) {{
+                        body = `<div class="no-data">No inbound sortation sets for ${{hub}}</div>`;
+                    }} else {{
+                        body = `<table><thead><tr>
+                            <th>Set #</th><th>Origins</th><th>Status</th><th>Expected</th><th>Inducted</th>
+                            <th>Progress</th><th>Zone</th><th>Start</th>
+                        </tr></thead><tbody>` + rows.map(renderInboundRow).join("") + `</tbody></table>`;
+                    }}
+                }}
+
+                return `<section class="hub-section" id="hub-${{hub}}">
+                    <div class="hub-header">
+                        <div class="hub-name">${{hub}}</div>
+                        <div class="hub-stats">${{stats}}</div>
+                    </div>
+                    ${{body}}
+                </section>`;
+            }}).join("");
+        }}
+
+        renderJump();
+        renderHubs();
+    </script>
+</body>
+</html>"""
+
+
 def publish(dry_run: bool = False, force: bool = False):
     """Fetch data, generate HTML, push to gh-pages."""
     log.info("Fetching scorecard data from localhost...")
@@ -597,6 +882,18 @@ def publish(dry_run: bool = False, force: bool = False):
     output.write_text(html)
     log.info(f"Generated {output} ({len(html)} bytes, {len(data['rows'])} sites)")
 
+    log.info("Fetching hubs data from localhost...")
+    hubs_data = fetch_hubs_data(force=force)
+    if hubs_data and hubs_data.get("hubs"):
+        hubs_html = generate_hubs_html(hubs_data)
+        hubs_output = GH_PAGES_DIR / "hubs.html"
+        hubs_output.write_text(hubs_html)
+        out_count = sum(len(s.get("outbound", [])) for s in hubs_data["hubs"].values())
+        in_count = sum(len(s.get("inbound", [])) for s in hubs_data["hubs"].values())
+        log.info(f"Generated {hubs_output} ({len(hubs_html)} bytes, {out_count} outbound, {in_count} inbound across {len(hubs_data['hubs'])} hubs)")
+    else:
+        log.warning("Hubs data unavailable — skipping hubs.html")
+
     if dry_run:
         log.info("[dry-run] Skipping git push")
         return True
@@ -610,7 +907,7 @@ def publish(dry_run: bool = False, force: bool = False):
             subprocess.run(["git", "checkout", "-b", "gh-pages"], cwd=GH_PAGES_DIR, capture_output=True)
             subprocess.run(["git", "remote", "add", "origin", REPO_URL], cwd=GH_PAGES_DIR, capture_output=True)
 
-        subprocess.run(["git", "add", "index.html"], cwd=GH_PAGES_DIR, capture_output=True)
+        subprocess.run(["git", "add", "index.html", "hubs.html"], cwd=GH_PAGES_DIR, capture_output=True)
 
         now = datetime.now(ET).strftime("%-I:%M %p ET")
         result = subprocess.run(

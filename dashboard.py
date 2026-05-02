@@ -20,6 +20,7 @@ load_dotenv(Path(__file__).parent / ".env")
 
 import cet_tracker
 import exception_tracker
+import hubs_tracker
 import lfr_tracker
 import return_bin_tracker
 import scorecard_tracker
@@ -66,6 +67,7 @@ _return_bin_cache = {"data": [], "fetched_at": None, "scanning": False}
 _small_batch_cache = {"data": {}, "fetched_at": None, "scanning": False}
 _scorecard_cache = {"data": [], "fetched_at": None, "scanning": False}
 _shipment_cache = {"data": [], "fetched_at": None, "scanning": False}
+_hubs_cache = {"data": {}, "fetched_at": None, "scanning": False}
 _cache_lock = threading.Lock()
 
 # ---------------------------------------------------------------------------
@@ -404,6 +406,47 @@ def _get_shipment_data(force=False) -> list[dict]:
         return _shipment_cache["data"]
 
 
+def _get_hubs_data(force=False) -> dict:
+    with _cache_lock:
+        now = datetime.now(ET)
+        if not force and _hubs_cache["fetched_at"]:
+            age = (now - _hubs_cache["fetched_at"]).total_seconds()
+            if age < CACHE_TTL:
+                return _hubs_cache["data"]
+
+        if _hubs_cache["scanning"]:
+            return _hubs_cache["data"]
+
+        _hubs_cache["scanning"] = True
+
+    try:
+        log.info("Starting hubs scan...")
+        _check_and_refresh_auth()
+        _set_timerange()
+        results = hubs_tracker.run()
+        with _cache_lock:
+            _hubs_cache["data"] = results
+            _hubs_cache["fetched_at"] = datetime.now(ET)
+            _hubs_cache["scanning"] = False
+        return results
+    except Exception as e:
+        log.error(f"Hubs scan failed: {e}")
+        with _cache_lock:
+            _hubs_cache["scanning"] = False
+        return _hubs_cache["data"]
+
+
+def _hubs_cache_info() -> dict:
+    with _cache_lock:
+        if _hubs_cache["fetched_at"]:
+            age = (datetime.now(ET) - _hubs_cache["fetched_at"]).total_seconds()
+            return {
+                "last_updated": _hubs_cache["fetched_at"].strftime("%-I:%M %p ET"),
+                "cache_age_seconds": int(age),
+            }
+        return {"last_updated": "Never", "cache_age_seconds": -1}
+
+
 def _shipment_cache_info() -> dict:
     with _cache_lock:
         if _shipment_cache["fetched_at"]:
@@ -551,6 +594,20 @@ def api_shipments_refresh():
     data = _get_shipment_data(force=True)
     info = _shipment_cache_info()
     return jsonify({"rows": data, **info})
+
+
+@app.route("/hubs")
+def hubs_page():
+    data = _get_hubs_data()
+    info = _hubs_cache_info()
+    return render_template("hubs.html", hubs=data, hub_codes=hubs_tracker.HUBS, last_updated=info["last_updated"])
+
+
+@app.route("/api/hubs/refresh", methods=["POST"])
+def api_hubs_refresh():
+    data = _get_hubs_data(force=True)
+    info = _hubs_cache_info()
+    return jsonify({"hubs": data, "hub_codes": hubs_tracker.HUBS, **info})
 
 
 @app.route("/api/track", methods=["POST"])
